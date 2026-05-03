@@ -1,0 +1,16 @@
+{
+  "name": "lunedoc",
+  "private": true,
+  "version": "0.0.0",
+  "engines": {
+    "node": ">=20.10.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "web:dev": "pnpm --filter @lunedoc/web dev",
+    "web:build": "pnpm --filter @lunedoc/web build",
+    "web:test": "pnpm --filter @lunedoc/web test --run",
+    "web:lint": "pnpm --filter @lunedoc/web lint",
+    "prototype:serve": "python3 -m http.server 8765"
+  }
+}
