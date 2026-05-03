@@ -1,4 +1,4 @@
-import { Logo } from '@lunedoc/ui';
+import { Logo, Icon } from '@lunedoc/ui';
 
 export default function App() {
   return (
@@ -24,6 +24,22 @@ export default function App() {
         </a>
         . Phase 3 in progress; UI primitives are flowing in from <code>@lunedoc/ui</code>.
       </p>
+      <div
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 16,
+          marginTop: '1.5rem',
+          padding: '0.75rem 1rem',
+          color: '#5b5b66',
+          border: '1px solid #ececef',
+          borderRadius: 10,
+        }}
+      >
+        <Icon name="merge" />
+        <Icon name="sign" />
+        <Icon name="ocr" />
+      </div>
     </main>
   );
 }
