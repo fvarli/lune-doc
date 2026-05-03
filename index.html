@@ -4,7 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lunedoc — design canvas</title>
-  <link rel="stylesheet" href="docs/stylesheets/tokens.css" />
+  <!--
+    Cache-busting version stamp for local prototype assets only.
+    Bump on each prototype change so browsers don't serve stale JSX/CSS.
+    CDN libs (React, ReactDOM, Babel) are pinned upstream and don't need busting.
+  -->
+  <link rel="stylesheet" href="docs/stylesheets/tokens.css?v=20260503" />
   <style>
     html, body { margin: 0; padding: 0; overflow: hidden; }
     #root { width: 100%; height: 100%; }
@@ -17,22 +22,22 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script type="text/babel" src="docs/components/design-canvas.jsx"></script>
-  <script type="text/babel" src="docs/components/tweaks-panel.jsx"></script>
-  <script type="text/babel" src="docs/components/ios-frame.jsx"></script>
-  <script type="text/babel" src="docs/components/browser-window.jsx"></script>
-  <script type="text/babel" src="docs/components/i18n.jsx"></script>
-  <script type="text/babel" src="docs/components/primitives.jsx"></script>
-  <script type="text/babel" src="docs/components/homepage.jsx"></script>
-  <script type="text/babel" src="docs/components/tool-page.jsx"></script>
-  <script type="text/babel" src="docs/components/auth-page.jsx"></script>
-  <script type="text/babel" src="docs/components/blog-page.jsx"></script>
-  <script type="text/babel" src="docs/components/tool-variants.jsx"></script>
-  <script type="text/babel" src="docs/components/tools-index-page.jsx"></script>
-  <script type="text/babel" src="docs/components/pricing-page.jsx"></script>
-  <script type="text/babel" src="docs/components/dashboard-page.jsx"></script>
-  <script type="text/babel" src="docs/components/article-page.jsx"></script>
-  <script type="text/babel" src="docs/components/system-inventory.jsx"></script>
-  <script type="text/babel" src="docs/components/app.jsx"></script>
+  <script type="text/babel" src="docs/components/design-canvas.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/tweaks-panel.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/ios-frame.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/browser-window.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/i18n.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/primitives.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/homepage.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/tool-page.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/auth-page.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/blog-page.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/tool-variants.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/tools-index-page.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/pricing-page.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/dashboard-page.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/article-page.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/system-inventory.jsx?v=20260503"></script>
+  <script type="text/babel" src="docs/components/app.jsx?v=20260503"></script>
 </body>
 </html>
