@@ -1,0 +1,22 @@
+---
+import ToolLandingLayout from '../layouts/ToolLandingLayout.astro';
+import { MergeToolPage } from '@lunedoc/tools';
+import { MERGE_PAGE } from '../data/merge-pdf';
+
+const lang = 'en';
+const content = MERGE_PAGE[lang];
+---
+
+<ToolLandingLayout
+  lang={lang}
+  canonicalPath="/merge-pdf"
+  toolDisplayName="Merge PDF"
+  toolIconName="merge"
+  toolBadgeTone={252}
+  content={content}
+  relatedToolKeys={['split', 'compress', 'edit', 'watermark']}
+>
+  <div style="max-width: 1080px; margin: 0 auto; padding: 0 1.5rem;">
+    <MergeToolPage lang={lang} client:load />
+  </div>
+</ToolLandingLayout>
