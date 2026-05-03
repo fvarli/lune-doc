@@ -261,9 +261,11 @@ Open DevTools (F12) before walking the canvas.
 
 When every box above is checked **and** the issues file (if any) is empty, the prototype is ready for Phase 2 of `docs/frontend-migration-plan.md`.
 
-| Pass # | Date | Reviewer | Notes |
-|---|---|---|---|
-|  |  |  |  |
-|  |  |  |  |
+For the operating procedure of a human-side run, see **`docs/manual-qa-run.md`**.
+
+| Date | Tester | Result | Notes | Follow-up issue |
+|---|---|---|---|---|
+| YYYY-MM-DD | _name_ | pass / pass with notes / fail | _one-sentence summary_ | _link or `—`_ |
+|  |  |  |  |  |
 
 *Re-run this checklist whenever a tool page, the design system, or `tokens.css` changes.*
