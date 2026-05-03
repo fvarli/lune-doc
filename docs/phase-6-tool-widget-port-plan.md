@@ -1,6 +1,6 @@
 # Lunedoc — Phase 6: Tool Widget Port Plan
 
-**Status:** IN PROGRESS — first widget (Merge) ported on 2026-05-03 in commit `450fad8` on branch `phase-2/scaffold`.
+**Status:** IN PROGRESS — Merge + Split ported on 2026-05-03 (commits `450fad8`, `876aee7`) on branch `phase-2/scaffold`.
 
 **Companion docs:**
 - `docs/phase-3-ui-package-plan.md` — `@lunedoc/ui` (consumed here).
@@ -60,8 +60,8 @@ Order chosen to maximize early validation (smallest widgets first) and finish wi
 | # | Tool | Source in prototype | Status |
 |---|---|---|---|
 | 1 | **Merge** | `tool-variants.jsx:6–104` | ✓ DONE (2026-05-03, commit `450fad8`) |
-| 2 | **Split** | `tool-variants.jsx:106–236` | pending |
-| 3 | **Watermark** | `tool-variants.jsx:368–574` | pending |
+| 2 | **Split** | `tool-variants.jsx:106–236` | ✓ DONE (2026-05-03, commit `876aee7`) |
+| 3 | **Watermark** | `tool-variants.jsx:368–574` | next — recommended |
 | 4 | **Sign** | `tool-variants.jsx:651–976` | pending |
 | 5 | **OCR** | `tool-variants.jsx` (`OCRToolPage` + `OCRScannedPage` + `OCRExtractedBlock`) | pending |
 | 6 | **Edit** | `tool-variants.jsx` (`EditPDFToolPage` + helper glyphs + `EditPDFPreviewPage`) | pending |
@@ -85,7 +85,7 @@ Routes live in `apps/web` only. Marketing-side `/<tool>-pdf` landing pages are a
 |---|---|---|
 | `/` | `HomePage` (the existing smoke page with locale switch + ToolCard + Merge link) | live |
 | `/merge-pdf` | `<MergeToolPage lang={lang} />` | ✓ live |
-| `/split-pdf` | `<SplitToolPage lang={lang} />` | pending |
+| `/split-pdf` | `<SplitToolPage lang={lang} />` | ✓ live |
 | `/watermark-pdf` | `<WatermarkToolPage lang={lang} />` | pending |
 | `/sign-pdf` | `<SignToolPage lang={lang} />` | pending |
 | `/ocr-pdf` | `<OCRToolPage lang={lang} />` | pending |
@@ -127,3 +127,13 @@ These choices apply to every subsequent widget port unless overridden:
 ---
 
 *Phase 6 advances tool by tool. After Split (Step 2), we'll have enough sample size to decide whether to extract a `ToolShell` abstraction in `@lunedoc/ui` or keep widgets self-contained.*
+
+---
+
+## 7. Notes added during Split port (Step 2 — 2026-05-03)
+
+- **Same outer shell as Merge** — header-less wrapper with `var(--bg-muted)` background, max-width 920 container, back link, title row with tinted square badge, content card, bottom CTAs. Confirms the Merge precedent generalizes; we'll see whether a `ToolShell` abstraction earns its keep after Watermark.
+- **`btnGhost` helper still duplicated** — present locally in both `MergeToolPage.tsx` and `SplitToolPage.tsx`. Two copies. Will extract to `packages/tools/src/_internal/btnGhost.ts` (or similar) when Watermark becomes the third use — that's a real DRY signal, two copies isn't.
+- **Split's `[k, label]` mode-toggle list** typed via `as const` so `setMode(k)` keeps `k: SplitMode` literal narrowed. Same trick as the Header's nav items.
+- **`Set<number>` page selector** — `selected` state holds the picked pages. Not converted to `Map` or anything fancier; matches the prototype exactly. The strict `noUncheckedIndexedAccess` setting didn't bite here because `Set` access is always `boolean` / `void`, never indexed.
+- **Mode-switching state preserved across switches.** Toggling between range and pages mode keeps each side's state alive (selected pages persist when you flip back). Same as the prototype.
