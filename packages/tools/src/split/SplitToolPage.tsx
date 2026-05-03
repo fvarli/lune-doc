@@ -1,6 +1,7 @@
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import { useI18n, type Lang } from '@lunedoc/i18n';
 import { Icon, PdfThumb } from '@lunedoc/ui';
+import { btnGhost } from '../_internal/btnGhost';
 
 type SplitMode = 'range' | 'pages';
 
@@ -298,17 +299,3 @@ export function SplitToolPage({ lang }: SplitToolPageProps) {
   );
 }
 
-function btnGhost(disabled: boolean): CSSProperties {
-  return {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    border: '1px solid var(--line)',
-    background: 'var(--bg-elev)',
-    color: disabled ? 'var(--fg-subtle)' : 'var(--fg-muted)',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    display: 'grid',
-    placeItems: 'center',
-    opacity: disabled ? 0.4 : 1,
-  };
-}
