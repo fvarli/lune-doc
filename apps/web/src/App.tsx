@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { Header, Footer, Icon, ToolCard, PdfThumb, LangSwitch, TOOLS, type Lang } from '@lunedoc/ui';
-import { MergeToolPage } from '@lunedoc/tools';
+import { MergeToolPage, SplitToolPage } from '@lunedoc/tools';
 
 export default function App() {
   const [lang, setLang] = useState<Lang>('en');
@@ -14,6 +14,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage lang={lang} setLang={setLang} />} />
           <Route path="/merge-pdf" element={<MergeToolPage lang={lang} />} />
+          <Route path="/split-pdf" element={<SplitToolPage lang={lang} />} />
         </Routes>
       </main>
 
@@ -82,13 +83,20 @@ function HomePage({ lang, setLang }: HomePageProps) {
         <PdfThumb />
       </div>
 
-      <div style={{ marginTop: '2rem' }}>
+      <div style={{ marginTop: '2rem', display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <Link
           to="/merge-pdf"
           className="pl-btn pl-btn-primary pl-btn-lg"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
         >
           <Icon name="merge" size={16} stroke="var(--accent-fg)" /> Open Merge PDF →
+        </Link>
+        <Link
+          to="/split-pdf"
+          className="pl-btn pl-btn-ghost pl-btn-lg"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+        >
+          <Icon name="split" size={16} /> Open Split PDF →
         </Link>
       </div>
     </div>
