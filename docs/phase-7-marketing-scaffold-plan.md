@@ -1,6 +1,6 @@
 # Lunedoc — Phase 7: `apps/marketing` Scaffold Plan
 
-**Status:** IN PROGRESS — Astro shell scaffolded on 2026-05-03 in commit `749e685` on branch `phase-2/scaffold`. No tool landing pages yet.
+**Status:** IN PROGRESS — Astro shell scaffolded 2026-05-03 (`749e685`); **OCR PDF landing page live in EN/TR/ES** as of `0659985` (Step 2). 1 of 8 tool pages done.
 
 **Companion docs:**
 - `docs/seo-tool-page-template.md` — the production template each `/<tool>-pdf` page must implement.
@@ -168,3 +168,41 @@ Reiterated to prevent scope creep:
 ---
 
 *Phase 7 is the first phase that produces a user-visible product surface. The scaffold is the easy part; the eight tool landing pages following the SEO template are the work. After all 8 ship, Phase 7 closes and we open backend MVP (`docs/backend-api-plan.md`) — at that point the marketing pages can flip from mock widgets to real API clients in a single sweep.*
+
+---
+
+## 9. Step 2 — OCR PDF landing page (2026-05-03, commit `0659985`)
+
+First production tool landing page. **Live at `/ocr-pdf`, `/tr/ocr-pdf`, `/es/ocr-pdf`.**
+
+### Files added
+| File | Purpose |
+|---|---|
+| `apps/marketing/src/seo/schema.ts` | Typed JSON-LD helpers: `softwareApplicationSchema`, `faqPageSchema`, `howToSchema`, `breadcrumbListSchema`. Single `SITE_ORIGIN` constant (`https://lunedoc.app`) — change once when domain Q1 lands. |
+| `apps/marketing/src/data/ocr-pdf.ts` | Per-locale page content as `Record<Lang, ToolPageContent>`. Each locale block: seoTitle, metaDescription, eyebrow, h1, sub, trust[4], faq[8], howToTitle, howToSteps[3], plus 5 section labels (CTAs / FAQ heading / etc.). |
+| `apps/marketing/src/components/MarketingHeader.tsx` | React-island wrapper around `@lunedoc/ui` Header. Provides a real `setLang` that does full-page navigation to the locale's URL — clean static-page pattern, no client-side routing needed. |
+| `apps/marketing/src/layouts/ToolLandingLayout.astro` | Shared shell. Props: `lang`, `canonicalPath`, `toolDisplayName`, `toolIconName`, `toolBadgeTone`, `content`, `relatedToolKeys`. Emits `<head>` with canonical + 4 hreflang + 4 JSON-LD blocks; Header (client:load), hero with badge/eyebrow/h1/sub/trust strip, `<slot />` for the tool widget, How-to section, FAQ as `<details>` accordions, related-tools `<ToolCard>` grid (client:load), Footer (client:idle). |
+| `apps/marketing/src/pages/ocr-pdf.astro` | EN canonical at `/ocr-pdf`. |
+| `apps/marketing/src/pages/[lang]/ocr-pdf.astro` | TR/ES variants via `getStaticPaths()`. |
+
+### Output verified at build time
+
+- Generated: `/ocr-pdf/index.html`, `/tr/ocr-pdf/index.html`, `/es/ocr-pdf/index.html` (4 pages including the placeholder home).
+- Each page emits **4 JSON-LD blocks**: `SoftwareApplication`, `FAQPage` (8 questions), `HowTo` (3 steps), `BreadcrumbList` (3 levels).
+- Each page emits **canonical** + **4 hreflang** links (en/tr/es/x-default).
+- Per-locale `<title>` correct: `OCR PDF — Make Scans Searchable | Lunedoc`, `PDF OCR — Taramaları Aranabilir Yap | Lunedoc`, `OCR PDF — Convierte escaneos en buscables | Lunedoc`.
+- Per-locale H1 visible in body: "Make any scan searchable.", "Her taramayı aranabilir yap.", "Convierte cualquier escaneo en buscable.".
+- `<html lang>` matches per page.
+- Zero raw i18n keys leak (`ocr_title`, `nav_tools`, `foot_copy`, etc. — all 0).
+- `OCRToolPage` island present in each page as a `<astro-island client="load">` wrapper.
+- Related-tools tiles: Watermark, Edit, Sign, Compress (4 keys per `seo-tool-page-template.md` §10 selection logic — same category + cross-category common follow-ups).
+
+### Patterns established for the remaining 7 tool pages
+
+Each subsequent tool page is now ~3 files: a `data/<tool>-pdf.ts` content file (Record<Lang, ToolPageContent>), an `pages/<tool>-pdf.astro` (EN), and a `pages/[lang]/<tool>-pdf.astro` (TR/ES). The `ToolLandingLayout` and `seo/schema.ts` are reused as-is; no per-tool layout work needed. Tool widget hydrates as `client:load` inside the layout's slot.
+
+### Known caveats
+
+- `MarketingHeader`'s `setLang` does a full-page navigation (`window.location.href = ...`). Clean for static SEO; clicking the LangSwitch reloads the whole page. Acceptable for marketing surface. The `apps/web` Header uses real React state as before — different surface, different pattern.
+- `Footer` mounts `client:idle` which means a tiny JS payload eventually hydrates it. Could drop to fully static (no client directive) since Footer has no interactivity, but the savings are negligible and the consistency is nice. Revisit if the marketing JS budget pinches.
+- Domain is hardcoded to `https://lunedoc.app` in `schema.ts` (Q1 in `project-status.md`). One edit when finalized.
