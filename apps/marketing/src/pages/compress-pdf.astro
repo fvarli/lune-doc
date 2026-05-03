@@ -1,0 +1,22 @@
+---
+import ToolLandingLayout from '../layouts/ToolLandingLayout.astro';
+import { CompressToolPage } from '@lunedoc/tools';
+import { COMPRESS_PAGE } from '../data/compress-pdf';
+
+const lang = 'en';
+const content = COMPRESS_PAGE[lang];
+---
+
+<ToolLandingLayout
+  lang={lang}
+  canonicalPath="/compress-pdf"
+  toolDisplayName="Compress PDF"
+  toolIconName="compress"
+  toolBadgeTone={200}
+  content={content}
+  relatedToolKeys={['convert', 'merge', 'split', 'edit']}
+>
+  <div style="max-width: 1080px; margin: 0 auto; padding: 0 1.5rem;">
+    <CompressToolPage lang={lang} client:load />
+  </div>
+</ToolLandingLayout>
