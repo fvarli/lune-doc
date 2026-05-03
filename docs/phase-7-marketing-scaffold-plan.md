@@ -1,6 +1,6 @@
 # Lunedoc — Phase 7: `apps/marketing` Scaffold Plan
 
-**Status:** IN PROGRESS — Astro shell scaffolded 2026-05-03 (`749e685`); **7 of 8 tool pages live in EN/TR/ES**: OCR (`0659985`), Watermark (`b57df71`), Sign (`accbade`), Edit (`86e1669`), Merge (`49a8f25`), Compress (`8f5a3c0`), Convert (`d2f5e69`). Only **Split** remains.
+**Status:** ✓ DONE (2026-05-03) — **all 8 tool pages live in EN/TR/ES**. Commit range: `749e685..e302623` on branch `phase-2/scaffold`. 25 static HTML files in `apps/marketing/dist/` (8 tools × 3 locales + home placeholder). Per-page output: canonical + 4 hreflang + 4 JSON-LD blocks + tool-widget React island + per-locale `<title>`/`<html lang>` + zero raw i18n keys.
 
 **Companion docs:**
 - `docs/seo-tool-page-template.md` — the production template each `/<tool>-pdf` page must implement.
@@ -217,6 +217,33 @@ Four more tool pages live, same 3-files-per-tool pattern. Built artifacts now to
 - Three-file-per-tool overhead is real and stable. Each port took ~10 min of authoring work after the OCR template was set.
 - Per-locale long-form copy lives in `apps/marketing/src/data/<tool>-pdf.ts` as `Record<Lang, ToolPageContent>`. The shared interface (`ToolPageContent` exported from `data/ocr-pdf.ts` for backwards-compat reasons) constrains every page to the same shape — strict TS catches a missing FAQ entry at build time.
 - All 7 pages share `ToolLandingLayout.astro`, `seo/schema.ts`, `MarketingHeader.tsx` without modification. The layout abstraction held up; no premature breaks needed.
+
+### Step 9 — Split PDF closes Phase 7 (2026-05-03, commit `e302623`)
+
+Final tool ported. Split-specific honesty notes baked into FAQ + trust strip in all 3 locales: Split is **page-based** — outputs preserve full pages, not partial text. For partial-text extraction, callers should use OCR (scans) or Convert PDF → JPG (images). Two modes preserved from the prototype: by-range (one PDF per range) and by-page (one combined PDF of ticked pages).
+
+### Routes live (24 tool URLs)
+
+```
+EN canonical             /merge-pdf  /split-pdf  /watermark-pdf  /sign-pdf
+                         /ocr-pdf    /edit-pdf   /compress-pdf   /convert-pdf
+TR variants  /tr/<each>
+ES variants  /es/<each>
+```
+
+Plus `/` (home placeholder) — total 25 static HTML files.
+
+### Phase 7 closure — what we shipped
+
+- `apps/marketing/` — full Astro 6 + React 19 + TS workspace.
+- `ToolLandingLayout.astro` — single shared shell, 4 JSON-LD types, 4 hreflang variants, hero + tool widget slot + how-to + FAQ + related tools + footer.
+- `seo/schema.ts` — typed JSON-LD helpers (`softwareApplicationSchema`, `faqPageSchema`, `howToSchema`, `breadcrumbListSchema`).
+- `MarketingHeader.tsx` — React-island wrapper that does full-page navigation when `setLang` is called (clean static-page pattern).
+- 8 × `data/<tool>-pdf.ts` — per-locale long-form copy.
+- 8 × `pages/<tool>-pdf.astro` (EN canonical) + 8 × `pages/[lang]/<tool>-pdf.astro` (TR/ES via getStaticPaths).
+- Honesty clauses baked into Sign (visible-not-cryptographic), Edit (overlay-not-reflow), Compress (size-depends-on-original), Convert (PDF→Word lossy + formulas don't survive PDF→Excel), Split (full-pages-not-partial-text).
+
+Phase 7 closes the prototype-to-product migration arc on the **frontend** side. Both surfaces (`apps/web` for the in-app workflow, `apps/marketing` for SEO landing pages) consume the same `@lunedoc/ui` / `@lunedoc/i18n` / `@lunedoc/tools` packages. **The next workstream is the backend** per `docs/backend-api-plan.md` — when that lands, both apps' tool widgets flip from mock to real-API in one diff, and the migration story is complete.
 
 Two more tool pages live, following the OCR pattern verbatim — each is exactly 3 files (data + EN page + TR/ES page). Built artifacts now total **10 pages**: 3 tools × 3 locales + the home placeholder.
 

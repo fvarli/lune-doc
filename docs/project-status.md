@@ -170,18 +170,9 @@ Status as of 2026-05-03 — branch `phase-2/scaffold`:
   - **Routes live:** `/merge-pdf`, `/split-pdf`, `/watermark-pdf`, `/sign-pdf`, `/ocr-pdf`, `/edit-pdf`, `/compress-pdf`, `/convert-pdf`.
   - **Inside `@lunedoc/tools`:** `MergeToolPage`, `SplitToolPage`, `WatermarkToolPage`, `SignToolPage`, `OCRToolPage`, `EditPDFToolPage`, `CompressToolPage`, `ConvertToolPage`. Shared internal helper at `packages/tools/src/_internal/btnGhost.ts`.
   - The prototype remains untouched — `index.html` + `docs/components/*.jsx` are exactly as they were before Phase 2. Phase 8 (cutover) will eventually move the prototype into `prototype/design-canvas/` per the original migration plan; not now.
-- **Phase 7 (`apps/marketing` Astro site for SEO tool landing pages)** — IN PROGRESS, started 2026-05-03. `apps/marketing` is a 4th workspace alongside `apps/web` and the three packages, runs on port **4321**, consumes `@lunedoc/ui` / `@lunedoc/i18n` / `@lunedoc/tools` as workspace deps. **7 of 8 tool pages live in EN/TR/ES**:
-  - **OCR** `/ocr-pdf` (commit `0659985`)
-  - **Watermark** `/watermark-pdf` (`b57df71`)
-  - **Sign** `/sign-pdf` (`accbade`) — discloses visible-not-cryptographic signature in trust strip + FAQ across all 3 locales.
-  - **Edit** `/edit-pdf` (`86e1669`) — discloses overlay-not-full-reflow editing.
-  - **Merge** `/merge-pdf` (`49a8f25`)
-  - **Compress** `/compress-pdf` (`8f5a3c0`) — FAQ explicitly says size reduction depends on original PDF contents.
-  - **Convert** `/convert-pdf` (`d2f5e69`) — FAQ explicitly says PDF → Word is fundamentally lossy and that formulas don't survive PDF → Excel.
-  - 22 HTML files total in `apps/marketing/dist/` (7 tools × 3 locales + home placeholder).
-  - Each page: 4 JSON-LD blocks (SoftwareApplication / FAQPage / HowTo / BreadcrumbList), full hreflang set, per-locale `<title>` + `<html lang>`, tool widget as a `client:load` React island, related-tools tile grid, FAQ as `<details>` accordions. **Zero raw i18n keys in any rendered HTML.** All 7 share `ToolLandingLayout.astro` + `seo/schema.ts` + `MarketingHeader.tsx` without modification.
-  - Only **Split PDF** remains. See `docs/phase-7-marketing-scaffold-plan.md`.
-- **Next workstream — port Split alone, then close Phase 7.** Split is the only widget left and is the smallest of the remaining set (range builder + per-page-block selector). One feature commit + one closure docs commit and Phase 7 is done.
+- **Phase 7 (`apps/marketing` Astro site for SEO tool landing pages)** — ✓ DONE 2026-05-03. Commit range `749e685..e302623`. **All 8 tool pages live in EN/TR/ES** at `/<tool>-pdf`, `/tr/<tool>-pdf`, `/es/<tool>-pdf` for `merge`, `split`, `watermark`, `sign`, `ocr`, `edit`, `compress`, `convert`. **25 static HTML files** in `apps/marketing/dist/` (8 tools × 3 locales + home placeholder). Each page emits canonical + 4 hreflang + 4 JSON-LD blocks (SoftwareApplication / FAQPage / HowTo / BreadcrumbList), per-locale `<title>` + `<html lang>`, hydrates the tool widget as a `client:load` React island, and renders related-tools tile grid + FAQ accordions + Footer. Zero raw i18n keys in any rendered HTML. Honesty clauses baked in for Sign (visible-not-cryptographic), Edit (overlay-not-reflow), Compress (size-depends-on-original), Convert (PDF→Word lossy + formulas don't survive PDF→Excel), Split (full-pages-not-partial-text). See `docs/phase-7-marketing-scaffold-plan.md`.
+- **Next workstream — backend MVP** per `docs/backend-api-plan.md`. When the API endpoints land, both `apps/web` and `apps/marketing` widgets flip from client-side mocks to real API clients in a single diff — closing the prototype-to-product migration story end-to-end. Estimated 7 weeks per the plan.
+- **Optional small side task — extract `I18N_ARTICLES`** from the prototype's `docs/components/i18n.jsx` into `@lunedoc/i18n` (~30 minutes). Closes the Phase 4 open thread; not blocking anything.
 - **Other open workstreams (not blocked by Phase 7):**
   - **Backend MVP** per `docs/backend-api-plan.md` (~7 weeks). When it lands, both `apps/web` and `apps/marketing` widgets flip from mock to real-API in a single sweep.
   - **Extract `I18N_ARTICLES`** from the prototype into `@lunedoc/i18n` (~30 min). Closes the Phase 4 open thread.
