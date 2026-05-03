@@ -1,0 +1,31 @@
+---
+import ToolLandingLayout from '../../layouts/ToolLandingLayout.astro';
+import { ConvertToolPage } from '@lunedoc/tools';
+import { CONVERT_PAGE } from '../../data/convert-pdf';
+import type { Lang } from '@lunedoc/i18n';
+
+export function getStaticPaths() {
+  return [
+    { params: { lang: 'tr' } },
+    { params: { lang: 'es' } },
+  ];
+}
+
+const { lang: rawLang } = Astro.params;
+const lang = rawLang as Lang;
+const content = CONVERT_PAGE[lang];
+---
+
+<ToolLandingLayout
+  lang={lang}
+  canonicalPath="/convert-pdf"
+  toolDisplayName="Convert PDF"
+  toolIconName="convert"
+  toolBadgeTone={220}
+  content={content}
+  relatedToolKeys={['ocr', 'compress', 'edit', 'merge']}
+>
+  <div style="max-width: 1080px; margin: 0 auto; padding: 0 1.5rem;">
+    <ConvertToolPage lang={lang} client:load />
+  </div>
+</ToolLandingLayout>
