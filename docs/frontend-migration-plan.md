@@ -1,10 +1,24 @@
 # Lunedoc — Frontend Migration Plan
 
-**Status:** documentation only. No migration has started. The current prototype remains the canonical UI source until Phase 2 of this plan begins.
+**Status:** ✓ DONE through Phase 7 (2026-05-03). The frontend migration is complete on `main`: `apps/web` (Vite + React 19 + TS, 8 tool routes) and `apps/marketing` (Astro 6 + React islands, 25 static HTML files in EN/TR/ES) both ship from the same workspace, both consume `@lunedoc/ui` / `@lunedoc/i18n` / `@lunedoc/tools`. Backend MVP per `docs/backend-api-plan.md` is the next workstream. The prototype (`index.html` + `docs/components/*.jsx`) remains untouched and still serves as the design source of truth from `python3 -m http.server 8765`.
+
+**Numbering note:** the phase numbers in §3 below are this doc's *original* outline. The work as actually delivered renumbered to match the per-phase plan files in `docs/`:
+
+| This doc's outline | Per-phase plan filename | What shipped |
+|---|---|---|
+| Phase 2 — Scaffold `apps/web` | `phase-2-vite-scaffold-plan.md` | ✓ same |
+| Phase 3 — Scaffold `apps/marketing` | (deferred) | shipped as Phase 7 below |
+| Phase 4 — Extract tokens + primitives into `packages/ui` | `phase-3-ui-package-plan.md` | shipped as Phase 3 |
+| Phase 5 — Extract i18n into `packages/i18n` | `phase-4-i18n-package-plan.md` | shipped as Phase 4 (merged with `@lunedoc/ui` wiring) |
+| Phase 6 — Port tool widgets | `phase-6-tool-widget-port-plan.md` | ✓ same |
+| Phase 7 — Port SEO tool landing pages | `phase-7-marketing-scaffold-plan.md` | shipped as Phase 7 (includes the `apps/marketing` scaffold that this doc had as Phase 3) |
+| Phase 8 — Move prototype into `prototype/design-canvas` | (not yet) | not yet — deferred |
+
+`docs/project-status.md` §8 R3 is the canonical executed-phase status. This doc remains useful as the long-form architectural reasoning behind the move.
 
 **Companion docs:**
 - `docs/monorepo-structure.md` — the broader target repository layout.
-- `docs/project-status.md` — current artboard / tool inventory.
+- `docs/project-status.md` — current state of the repo and the canonical phase-completion record.
 - `docs/seo-tool-page-template.md` — what the migrated tool landing pages must implement.
 
 ---

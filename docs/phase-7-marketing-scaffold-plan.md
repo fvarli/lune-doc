@@ -1,6 +1,6 @@
 # Lunedoc — Phase 7: `apps/marketing` Scaffold Plan
 
-**Status:** ✓ DONE (2026-05-03) — **all 8 tool pages live in EN/TR/ES**. Commit range: `749e685..e302623` on branch `phase-2/scaffold`. 25 static HTML files in `apps/marketing/dist/` (8 tools × 3 locales + home placeholder). Per-page output: canonical + 4 hreflang + 4 JSON-LD blocks + tool-widget React island + per-locale `<title>`/`<html lang>` + zero raw i18n keys.
+**Status:** ✓ DONE (2026-05-03) — **all 8 tool pages live in EN/TR/ES**. Commit range: `749e685..e302623` (merged to `main`; the working branch was deleted post-merge). 25 static HTML files in `apps/marketing/dist/` (8 tools × 3 locales + home placeholder). Per-page output: canonical + 4 hreflang + 4 JSON-LD blocks + tool-widget React island + per-locale `<title>`/`<html lang>` + zero raw i18n keys.
 
 **Companion docs:**
 - `docs/seo-tool-page-template.md` — the production template each `/<tool>-pdf` page must implement.
@@ -142,7 +142,7 @@ For **each subsequent tool landing page**, all of the following must be green be
 
 ## 7. Rollback plan
 
-This scaffold is in a **single commit** (`749e685`) on `phase-2/scaffold`. Rollback paths:
+This scaffold landed as a **single commit** (`749e685`) — now on `main`. Rollback paths:
 
 | Failure | Rollback |
 |---|---|

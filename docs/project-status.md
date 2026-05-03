@@ -16,44 +16,55 @@ State of the prototype:
 - **9 page sections, 32 artboards** across desktop and mobile (full inventory in §4).
 - **8 PDF tools mocked end-to-end** (Compress, Merge, Split, Convert, Watermark, Sign, OCR, Edit) — see §5.
 - **i18n live in EN / TR / ES** for every tool surface; switching locale via the Tweaks panel re-renders all artboards.
-- **Backend**: not started. API design is proposed in `docs/backend-api-plan.md`.
-- **Migration to Vite/React/Next**: not started, intentional.
+- **Prototype is the design source of truth** and remains served from `python3 -m http.server 8765`. It was not modified during the migration and won't be until the Phase 8 cutover (move into `prototype/design-canvas/`).
+- **Frontend migration**: ✓ DONE through Phase 7 on `main`. `apps/web` (Vite + React 19 + TS) at port 5173 serves all 8 tool routes. `apps/marketing` (Astro 6 + React islands + TS) builds 25 static HTML files (8 tools × 3 locales + home) for the public SEO surface. See §8 R3 for commit ranges.
+- **Backend**: not started. API design is proposed in `docs/backend-api-plan.md`. **This is the next workstream.**
 
 ---
 
 ## 2. Folder structure
 
 ```
-lune-doc/
-├── index.html                          ← active entrypoint (root)
-├── .design-canvas.state.json           ← sidecar for design-canvas state (empty)
+lune-doc/                               ← pnpm workspace
+├── package.json                         ← root scripts: web:dev/build/lint, marketing:dev/build, prototype:serve
+├── pnpm-workspace.yaml                  ← apps/* + packages/*
+├── tsconfig.base.json                   ← strict TS shared by every workspace
+├── .npmrc / .nvmrc
+├── index.html                           ← prototype entrypoint (untouched)
+├── .design-canvas.state.json            ← prototype sidecar (untouched)
+├── apps/
+│   ├── web/                             ← Vite + React 19 + TS · port 5173 · 8 tool routes
+│   │   └── src/{App.tsx, main.tsx, …}
+│   └── marketing/                       ← Astro 6 + React islands + TS · port 4321
+│       └── src/{layouts/, pages/, data/, components/, seo/}
+├── packages/
+│   ├── ui/                              ← @lunedoc/ui · tokens.css + Logo/Icon/Header/Footer/ToolCard/PdfThumb/LangSwitch + Lang type
+│   ├── i18n/                            ← @lunedoc/i18n · 336-key EN/TR/ES JSON tables + useI18n hook
+│   └── tools/                           ← @lunedoc/tools · 8 ported tool widgets (Merge/Split/Watermark/Sign/OCR/Edit/Compress/Convert)
 └── docs/
-    ├── backend-api-plan.md             ← API design proposal (no code yet)
-    ├── project-status.md               ← this file
-    ├── components/                     ← all JSX, loaded as <script type="text/babel">
-    │   ├── design-canvas.jsx           ← pan/zoom canvas + section/artboard primitives
-    │   ├── tweaks-panel.jsx            ← floating tweaks (theme, accent, locale, density)
-    │   ├── ios-frame.jsx               ← iPhone artboard chrome
-    │   ├── browser-window.jsx          ← desktop browser chrome
-    │   ├── i18n.jsx                    ← I18N_STRINGS for en/tr/es + useI18n hook
-    │   ├── primitives.jsx              ← Logo, Header, Footer, Icon, ToolCard, TOOLS, BRAND_NAME
-    │   ├── homepage.jsx                ← HomeContent
-    │   ├── tool-page.jsx               ← ToolPage (Compress shell — empty/uploading/done states)
-    │   ├── auth-page.jsx               ← AuthPage (signin/register)
-    │   ├── blog-page.jsx               ← BlogPage
-    │   ├── tool-variants.jsx           ← Merge, Split, Convert, Watermark, Sign, OCR, Edit
-    │   ├── tools-index-page.jsx       ← ToolsIndexPage
-    │   ├── pricing-page.jsx            ← PricingPage
-    │   ├── dashboard-page.jsx          ← DashboardPage
-    │   ├── article-page.jsx            ← ArticlePage
-    │   ├── system-inventory.jsx        ← SystemInventoryPage (design-system reference)
-    │   └── app.jsx                     ← composes everything; mounts to #root
-    ├── stylesheets/
-    │   └── tokens.css                  ← design tokens (colors, type, spacing, shadows)
-    └── index-html/                     ← reference screenshots (PNGs only)
+    ├── project-status.md                ← this file
+    ├── backend-api-plan.md              ← API design proposal (next workstream)
+    ├── seo-tool-page-template.md        ← template each /<tool>-pdf page implements
+    ├── monorepo-structure.md            ← target repo layout reference
+    ├── frontend-migration-plan.md       ← long-term frontend outline (Phases 2–7 done)
+    ├── ui-qa-checklist.md               ← QA checklist for prototype changes
+    ├── manual-qa-run.md                 ← human-side QA operating procedure
+    ├── phase-2-vite-scaffold-plan.md    ← Phase 2 closure
+    ├── phase-3-ui-package-plan.md       ← Phase 3 closure
+    ├── phase-4-i18n-package-plan.md     ← Phase 4 closure
+    ├── phase-6-tool-widget-port-plan.md ← Phase 6 closure
+    ├── phase-7-marketing-scaffold-plan.md ← Phase 7 closure
+    ├── post-phase-7-audit.md            ← post-merge repo audit
+    ├── components/                      ← prototype JSX (untouched, design source of truth)
+    │   ├── design-canvas.jsx, tweaks-panel.jsx, ios-frame.jsx, browser-window.jsx
+    │   ├── i18n.jsx, primitives.jsx, homepage.jsx, tool-page.jsx, auth-page.jsx
+    │   ├── blog-page.jsx, tool-variants.jsx, tools-index-page.jsx, pricing-page.jsx
+    │   ├── dashboard-page.jsx, article-page.jsx, system-inventory.jsx, app.jsx
+    ├── stylesheets/tokens.css           ← prototype tokens (untouched, source for packages/ui/src/tokens.css)
+    └── index-html/                      ← reference screenshots (PNGs only)
 ```
 
-There is **no v1 archive**. Nothing else lives at the project root.
+The prototype tree under `docs/components/` and `docs/stylesheets/` and `index.html` is **the same files that existed before Phase 2 began**. Phase 8 (cutover) will eventually move this tree into `prototype/design-canvas/` per `docs/monorepo-structure.md`; not yet.
 
 ---
 
@@ -91,9 +102,15 @@ Local dev: `python3 -m http.server 8765` from project root → open `http://loca
 
 ---
 
-## 5. Completed tool mock pages
+## 5. Tool surfaces (3 places per tool)
 
-All 8 MVP tools have a working mock page with the same shell aesthetic (header → back link → tool badge + title → document strip → controls / preview grid → bottom CTAs). All have EN/TR/ES copy. All controls are stateful client-side; **no real PDF processing**.
+Each of the 8 MVP tools now exists in **three places**, all driven by client-side mocks (no real PDF processing yet):
+
+1. **Prototype** — design source artboards in `docs/components/tool-page.jsx` and `docs/components/tool-variants.jsx`. Same shell aesthetic across all 8.
+2. **`apps/web` route** — typed React component in `packages/tools/src/<tool>/<Tool>ToolPage.tsx`, served at `/<tool>-pdf` on port 5173.
+3. **`apps/marketing` landing page** — Astro static page at `/<tool>-pdf` (and `/tr/<tool>-pdf`, `/es/<tool>-pdf`) hydrating the same `@lunedoc/tools` widget as a React island.
+
+The table below describes the **prototype** version (the design spec). The widget rows are 1:1 with the ported components in `packages/tools/`.
 
 | Tool | Component | File | Desktop / Mobile artboard | Notes |
 |---|---|---|---|---|
@@ -125,7 +142,7 @@ All 8 MVP tools have a working mock page with the same shell aesthetic (header �
 |---|---|---|---|
 | D1 | Product name is **Lunedoc**. | confirmed | Live across `BRAND_NAME`, all browser-window URLs, the system-inventory hero, and i18n footer/auth-quote (rename completed 2026-05-03). One internal namespace `storageKey="paperline-canvas-v1"` intentionally retained — see §6. |
 | D2 | Lunedoc lives under the **Lunexa ecosystem**. | confirmed | No code dependency yet; will affect shared auth/billing later. |
-| D3 | **Web first, Flutter later.** | confirmed | All UI work is web; mobile app is a Phase-2 product. |
+| D3 | **Web first, Flutter later.** | confirmed | All UI work is web; mobile app is a post-MVP product (separate from the operational "Phase 2 = scaffold apps/web" used by the migration plan). |
 | D4 | **One API serves both web and Flutter.** | confirmed | Captured in `docs/backend-api-plan.md` §7. |
 | D5 | Backend stack: **Python + FastAPI + Celery + Redis**, with **PyMuPDF / Ghostscript / LibreOffice / Tesseract** for tool engines. Storage: local disk → Cloudflare R2 in prod. | proposed (`docs/backend-api-plan.md`) | Awaiting build sign-off. |
 | D6 | **No paid SaaS APIs in MVP.** Tesseract over Textract, LibreOffice over Adobe, ClamAV over hosted scanners. | confirmed | Revisit only on measured bottleneck. |
@@ -156,8 +173,8 @@ In recommended execution order. Each item is a self-contained workstream.
 - Verify the design canvas itself: section reordering, focus mode, sidecar persistence.
 - Resolve any remaining brand placeholders or lorem.
 
-### R3 — Vite + React migration — IN PROGRESS
-Status as of 2026-05-03 — branch `phase-2/scaffold`:
+### R3 — Vite + React migration — ✓ DONE through Phase 7
+All work merged to `main`; the working `phase-2/scaffold` branch was deleted after merge. Status as of 2026-05-03:
 
 - **Phase 2 (scaffold `apps/web`)** — ✓ DONE (commit `84680d3`). Vite + React 19 + TS 6 workspace boots; `pnpm web:dev` serves a "Hello Lunedoc" page on port 5173. See `docs/phase-2-vite-scaffold-plan.md`.
 - **Phase 3 (extract design system into `@lunedoc/ui`)** — ✓ DONE (commits `8305501..44f8f79`, 5 step-commits). `apps/web` now renders a real Lunedoc shell (Header → main → Footer) entirely from `@lunedoc/ui`. See `docs/phase-3-ui-package-plan.md`.
@@ -166,6 +183,7 @@ Status as of 2026-05-03 — branch `phase-2/scaffold`:
   - **Inside `@lunedoc/i18n`:** `I18N_STRINGS` (336 keys × en/tr/es identical key sets); `getStrings`, `createTranslator`, `useI18n` (memoized); `Lang` + `TranslationKey` (derived from EN JSON) types.
   - **Eager-load decision:** all 3 locales bundled into `apps/web`'s initial JS (~12 kB gzipped overhead). Threshold for switching to dynamic per-locale imports is ~5 locales — not yet.
   - **Open thread:** `I18N_ARTICLES` (blog article copy, lines 1126–1182 of `docs/components/i18n.jsx`) remains in the prototype only; will move when the blog pages get ported.
+- **Phase 5** — no separate phase. The original migration plan in `docs/frontend-migration-plan.md` listed Phase 5 as "Extract i18n into packages/i18n", but that work landed together with the `@lunedoc/ui` ↔ `@lunedoc/i18n` wiring as Phase 4 (commits above). The numbering jumps 4 → 6 in this status doc to match the per-phase plan filenames in `docs/`.
 - **Phase 6 (port real tool widgets into the workspace)** — ✓ DONE 2026-05-03. Commit range `450fad8..8c6e5ff`. **All 8 widgets** live in `@lunedoc/tools`; **all 8 routes** serve in `apps/web` with shared `<Header>` / `<Footer>` and shared lang state. See `docs/phase-6-tool-widget-port-plan.md`.
   - **Routes live:** `/merge-pdf`, `/split-pdf`, `/watermark-pdf`, `/sign-pdf`, `/ocr-pdf`, `/edit-pdf`, `/compress-pdf`, `/convert-pdf`.
   - **Inside `@lunedoc/tools`:** `MergeToolPage`, `SplitToolPage`, `WatermarkToolPage`, `SignToolPage`, `OCRToolPage`, `EditPDFToolPage`, `CompressToolPage`, `ConvertToolPage`. Shared internal helper at `packages/tools/src/_internal/btnGhost.ts`.
@@ -173,19 +191,6 @@ Status as of 2026-05-03 — branch `phase-2/scaffold`:
 - **Phase 7 (`apps/marketing` Astro site for SEO tool landing pages)** — ✓ DONE 2026-05-03. Commit range `749e685..e302623`. **All 8 tool pages live in EN/TR/ES** at `/<tool>-pdf`, `/tr/<tool>-pdf`, `/es/<tool>-pdf` for `merge`, `split`, `watermark`, `sign`, `ocr`, `edit`, `compress`, `convert`. **25 static HTML files** in `apps/marketing/dist/` (8 tools × 3 locales + home placeholder). Each page emits canonical + 4 hreflang + 4 JSON-LD blocks (SoftwareApplication / FAQPage / HowTo / BreadcrumbList), per-locale `<title>` + `<html lang>`, hydrates the tool widget as a `client:load` React island, and renders related-tools tile grid + FAQ accordions + Footer. Zero raw i18n keys in any rendered HTML. Honesty clauses baked in for Sign (visible-not-cryptographic), Edit (overlay-not-reflow), Compress (size-depends-on-original), Convert (PDF→Word lossy + formulas don't survive PDF→Excel), Split (full-pages-not-partial-text). See `docs/phase-7-marketing-scaffold-plan.md`.
 - **Next workstream — backend MVP** per `docs/backend-api-plan.md`. When the API endpoints land, both `apps/web` and `apps/marketing` widgets flip from client-side mocks to real API clients in a single diff — closing the prototype-to-product migration story end-to-end. Estimated 7 weeks per the plan.
 - **Optional small side task — extract `I18N_ARTICLES`** from the prototype's `docs/components/i18n.jsx` into `@lunedoc/i18n` (~30 minutes). Closes the Phase 4 open thread; not blocking anything.
-- **Other open workstreams (not blocked by Phase 7):**
-  - **Backend MVP** per `docs/backend-api-plan.md` (~7 weeks). When it lands, both `apps/web` and `apps/marketing` widgets flip from mock to real-API in a single sweep.
-  - **Extract `I18N_ARTICLES`** from the prototype into `@lunedoc/i18n` (~30 min). Closes the Phase 4 open thread.
-
-Original migration-plan items still useful as long-term reference:
-- File tree mapping (current `docs/components/*.jsx` → `src/components/*.tsx`).
-- TypeScript adoption strategy (gradual, starting with `i18n` + `primitives`).
-- How `window`-globals become real ES module imports.
-- Routing: React Router vs TanStack Router. (Lean: React Router for familiarity.)
-- Asset/CSS strategy: keep `tokens.css` as-is, import once at the root.
-- Dev loop: Vite + ESLint + Vitest. No SSR until needed.
-- Migration order: i18n → primitives → shells (browser/ios) → tool pages → app shell → canvas/tweaks last.
-- Decision point: stay Vite SPA, or move to Next.js for SSR/SEO. (Lean: SPA for app pages, Next only when the marketing site demands SSR.)
 
 ### R4 — Backend MVP implementation
 Per `docs/backend-api-plan.md` §8 — 7-week plan, anonymous tools first, auth and dashboard last. Concretely:
