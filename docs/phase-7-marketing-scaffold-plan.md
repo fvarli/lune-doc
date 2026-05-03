@@ -1,6 +1,6 @@
 # Lunedoc — Phase 7: `apps/marketing` Scaffold Plan
 
-**Status:** IN PROGRESS — Astro shell scaffolded 2026-05-03 (`749e685`); **3 of 8 tool pages live in EN/TR/ES**: OCR (`0659985`), Watermark (`b57df71`), Sign (`accbade`). Remaining: Edit, Compress, Convert, Merge, Split.
+**Status:** IN PROGRESS — Astro shell scaffolded 2026-05-03 (`749e685`); **7 of 8 tool pages live in EN/TR/ES**: OCR (`0659985`), Watermark (`b57df71`), Sign (`accbade`), Edit (`86e1669`), Merge (`49a8f25`), Compress (`8f5a3c0`), Convert (`d2f5e69`). Only **Split** remains.
 
 **Companion docs:**
 - `docs/seo-tool-page-template.md` — the production template each `/<tool>-pdf` page must implement.
@@ -201,7 +201,22 @@ First production tool landing page. **Live at `/ocr-pdf`, `/tr/ocr-pdf`, `/es/oc
 
 Each subsequent tool page is now ~3 files: a `data/<tool>-pdf.ts` content file (Record<Lang, ToolPageContent>), an `pages/<tool>-pdf.astro` (EN), and a `pages/[lang]/<tool>-pdf.astro` (TR/ES). The `ToolLandingLayout` and `seo/schema.ts` are reused as-is; no per-tool layout work needed. Tool widget hydrates as `client:load` inside the layout's slot.
 
-### Steps 3–4 — Watermark + Sign landing pages (2026-05-03, commits `b57df71`, `accbade`)
+### Steps 5–8 — Edit + Merge + Compress + Convert landing pages (2026-05-03, commits `86e1669`, `49a8f25`, `8f5a3c0`, `d2f5e69`)
+
+Four more tool pages live, same 3-files-per-tool pattern. Built artifacts now total **22 pages**: 7 tools × 3 locales + the home placeholder. Each page passes the same SEO sweep as OCR/Watermark/Sign — canonical + 4 hreflang + 4 JSON-LD blocks + correct widget island + per-locale H1 + zero raw i18n keys.
+
+| Tool | Slug | Widget | Tone | Honesty clause |
+|---|---|---|---|---|
+| Edit | `/edit-pdf` (+ tr/es) | `<EditPDFToolPage>` | 290 (edit family) | FAQ explicitly states this is **overlay editing**, not full text reflow — and that re-flowing original text needs a different product. Same disclosure in trust strip ("Overlay editor — not full text reflow" + locale equivalents). |
+| Merge | `/merge-pdf` (+ tr/es) | `<MergeToolPage>` | 252 (organize family) | No legal/quality concerns; FAQ notes that bookmarks/metadata default to first input's. |
+| Compress | `/compress-pdf` (+ tr/es) | `<CompressToolPage>` | 200 (compress family) | FAQ explicitly states "**how much smaller** depends on the original" and "**unpredictable until we try**." Sets the right expectation before users upload. |
+| Convert | `/convert-pdf` (+ tr/es) | `<ConvertToolPage>` | 220 (convert family) | FAQ explicitly states PDF → Word is **fundamentally lossy** and to **always proofread** before sending. PDF → Excel FAQ notes formulas don't survive (source PDF has no formula data). |
+
+### Patterns confirmed across 7 tool ports
+
+- Three-file-per-tool overhead is real and stable. Each port took ~10 min of authoring work after the OCR template was set.
+- Per-locale long-form copy lives in `apps/marketing/src/data/<tool>-pdf.ts` as `Record<Lang, ToolPageContent>`. The shared interface (`ToolPageContent` exported from `data/ocr-pdf.ts` for backwards-compat reasons) constrains every page to the same shape — strict TS catches a missing FAQ entry at build time.
+- All 7 pages share `ToolLandingLayout.astro`, `seo/schema.ts`, `MarketingHeader.tsx` without modification. The layout abstraction held up; no premature breaks needed.
 
 Two more tool pages live, following the OCR pattern verbatim — each is exactly 3 files (data + EN page + TR/ES page). Built artifacts now total **10 pages**: 3 tools × 3 locales + the home placeholder.
 

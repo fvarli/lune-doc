@@ -170,15 +170,18 @@ Status as of 2026-05-03 — branch `phase-2/scaffold`:
   - **Routes live:** `/merge-pdf`, `/split-pdf`, `/watermark-pdf`, `/sign-pdf`, `/ocr-pdf`, `/edit-pdf`, `/compress-pdf`, `/convert-pdf`.
   - **Inside `@lunedoc/tools`:** `MergeToolPage`, `SplitToolPage`, `WatermarkToolPage`, `SignToolPage`, `OCRToolPage`, `EditPDFToolPage`, `CompressToolPage`, `ConvertToolPage`. Shared internal helper at `packages/tools/src/_internal/btnGhost.ts`.
   - The prototype remains untouched — `index.html` + `docs/components/*.jsx` are exactly as they were before Phase 2. Phase 8 (cutover) will eventually move the prototype into `prototype/design-canvas/` per the original migration plan; not now.
-- **Phase 7 (`apps/marketing` Astro site for SEO tool landing pages)** — IN PROGRESS, started 2026-05-03. `apps/marketing` is a 4th workspace alongside `apps/web` and the three packages, runs on port **4321**, consumes `@lunedoc/ui` / `@lunedoc/i18n` / `@lunedoc/tools` as workspace deps. **3 of 8 tool pages live in EN/TR/ES**:
-  - **OCR PDF** at `/ocr-pdf`, `/tr/ocr-pdf`, `/es/ocr-pdf` (commit `0659985`).
-  - **Watermark PDF** at `/watermark-pdf`, `/tr/watermark-pdf`, `/es/watermark-pdf` (commit `b57df71`).
-  - **Sign PDF** at `/sign-pdf`, `/tr/sign-pdf`, `/es/sign-pdf` (commit `accbade`) — FAQ + trust strip explicitly disclose that this is a visible signature, not a cryptographic e-signature, in all three locales.
-  - Each page: 4 JSON-LD blocks (SoftwareApplication / FAQPage / HowTo / BreadcrumbList), full hreflang set, per-locale `<title>` + `<html lang>`, tool widget as a `client:load` React island, related-tools tile grid, FAQ as `<details>` accordions. Zero raw i18n keys in any rendered HTML.
-  - Shared `ToolLandingLayout.astro` + `seo/schema.ts` + `MarketingHeader.tsx` reused as-is across all 3. Each tool port is now ~3 files (data + EN page + TR/ES page).
-  - 10 HTML files total in `apps/marketing/dist/` (3 tools × 3 locales + home placeholder).
-  - Remaining 5 tool pages: **Edit, Compress, Convert, Merge, Split**. See `docs/phase-7-marketing-scaffold-plan.md`.
-- **Next workstream — port the next two tool landing pages together.** Recommended: **Edit + Merge as a pair**. Edit reuses the 2-pane preview shape (same as Watermark/Sign — fast to port). Merge is the smallest tool widget overall (file list + reorder buttons + total MB) — minimal copy work. Pairing them keeps momentum and brings us to 5 of 8 done. Then Compress + Convert (different shapes — state machine + format pair) and Split close the phase.
+- **Phase 7 (`apps/marketing` Astro site for SEO tool landing pages)** — IN PROGRESS, started 2026-05-03. `apps/marketing` is a 4th workspace alongside `apps/web` and the three packages, runs on port **4321**, consumes `@lunedoc/ui` / `@lunedoc/i18n` / `@lunedoc/tools` as workspace deps. **7 of 8 tool pages live in EN/TR/ES**:
+  - **OCR** `/ocr-pdf` (commit `0659985`)
+  - **Watermark** `/watermark-pdf` (`b57df71`)
+  - **Sign** `/sign-pdf` (`accbade`) — discloses visible-not-cryptographic signature in trust strip + FAQ across all 3 locales.
+  - **Edit** `/edit-pdf` (`86e1669`) — discloses overlay-not-full-reflow editing.
+  - **Merge** `/merge-pdf` (`49a8f25`)
+  - **Compress** `/compress-pdf` (`8f5a3c0`) — FAQ explicitly says size reduction depends on original PDF contents.
+  - **Convert** `/convert-pdf` (`d2f5e69`) — FAQ explicitly says PDF → Word is fundamentally lossy and that formulas don't survive PDF → Excel.
+  - 22 HTML files total in `apps/marketing/dist/` (7 tools × 3 locales + home placeholder).
+  - Each page: 4 JSON-LD blocks (SoftwareApplication / FAQPage / HowTo / BreadcrumbList), full hreflang set, per-locale `<title>` + `<html lang>`, tool widget as a `client:load` React island, related-tools tile grid, FAQ as `<details>` accordions. **Zero raw i18n keys in any rendered HTML.** All 7 share `ToolLandingLayout.astro` + `seo/schema.ts` + `MarketingHeader.tsx` without modification.
+  - Only **Split PDF** remains. See `docs/phase-7-marketing-scaffold-plan.md`.
+- **Next workstream — port Split alone, then close Phase 7.** Split is the only widget left and is the smallest of the remaining set (range builder + per-page-block selector). One feature commit + one closure docs commit and Phase 7 is done.
 - **Other open workstreams (not blocked by Phase 7):**
   - **Backend MVP** per `docs/backend-api-plan.md` (~7 weeks). When it lands, both `apps/web` and `apps/marketing` widgets flip from mock to real-API in a single sweep.
   - **Extract `I18N_ARTICLES`** from the prototype into `@lunedoc/i18n` (~30 min). Closes the Phase 4 open thread.
