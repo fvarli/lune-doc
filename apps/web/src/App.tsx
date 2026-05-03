@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { Header, Footer, Icon, ToolCard, PdfThumb, LangSwitch, TOOLS, type Lang } from '@lunedoc/ui';
-import { MergeToolPage, SplitToolPage, WatermarkToolPage } from '@lunedoc/tools';
+import { MergeToolPage, SplitToolPage, WatermarkToolPage, SignToolPage } from '@lunedoc/tools';
 
 export default function App() {
   const [lang, setLang] = useState<Lang>('en');
@@ -16,6 +16,7 @@ export default function App() {
           <Route path="/merge-pdf" element={<MergeToolPage lang={lang} />} />
           <Route path="/split-pdf" element={<SplitToolPage lang={lang} />} />
           <Route path="/watermark-pdf" element={<WatermarkToolPage lang={lang} />} />
+          <Route path="/sign-pdf" element={<SignToolPage lang={lang} />} />
         </Routes>
       </main>
 
@@ -105,6 +106,13 @@ function HomePage({ lang, setLang }: HomePageProps) {
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
         >
           <Icon name="watermark" size={16} /> Open Watermark PDF →
+        </Link>
+        <Link
+          to="/sign-pdf"
+          className="pl-btn pl-btn-ghost pl-btn-lg"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+        >
+          <Icon name="sign" size={16} /> Open Sign PDF →
         </Link>
       </div>
     </div>
