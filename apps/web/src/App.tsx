@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { Header, Footer, Icon, ToolCard, PdfThumb, LangSwitch, TOOLS, type Lang } from '@lunedoc/ui';
-import { MergeToolPage, SplitToolPage, WatermarkToolPage, SignToolPage, OCRToolPage } from '@lunedoc/tools';
+import { MergeToolPage, SplitToolPage, WatermarkToolPage, SignToolPage, OCRToolPage, EditPDFToolPage } from '@lunedoc/tools';
 
 export default function App() {
   const [lang, setLang] = useState<Lang>('en');
@@ -18,6 +18,7 @@ export default function App() {
           <Route path="/watermark-pdf" element={<WatermarkToolPage lang={lang} />} />
           <Route path="/sign-pdf" element={<SignToolPage lang={lang} />} />
           <Route path="/ocr-pdf" element={<OCRToolPage lang={lang} />} />
+          <Route path="/edit-pdf" element={<EditPDFToolPage lang={lang} />} />
         </Routes>
       </main>
 
@@ -121,6 +122,13 @@ function HomePage({ lang, setLang }: HomePageProps) {
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
         >
           <Icon name="ocr" size={16} /> Open OCR PDF →
+        </Link>
+        <Link
+          to="/edit-pdf"
+          className="pl-btn pl-btn-ghost pl-btn-lg"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+        >
+          <Icon name="edit" size={16} /> Open Edit PDF →
         </Link>
       </div>
     </div>
