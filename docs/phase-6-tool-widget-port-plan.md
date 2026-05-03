@@ -1,6 +1,6 @@
 # Lunedoc — Phase 6: Tool Widget Port Plan
 
-**Status:** IN PROGRESS — Merge, Split, Watermark ported on 2026-05-03 (commits `450fad8`, `876aee7`, `e90e54f`, `7956f69`) on branch `phase-2/scaffold`.
+**Status:** IN PROGRESS — Merge, Split, Watermark, Sign ported on 2026-05-03 (commits `450fad8`, `876aee7`, `e90e54f`, `7956f69`, `828a342`) on branch `phase-2/scaffold`.
 
 **Companion docs:**
 - `docs/phase-3-ui-package-plan.md` — `@lunedoc/ui` (consumed here).
@@ -62,8 +62,8 @@ Order chosen to maximize early validation (smallest widgets first) and finish wi
 | 1 | **Merge** | `tool-variants.jsx:6–104` | ✓ DONE (2026-05-03, commit `450fad8`) |
 | 2 | **Split** | `tool-variants.jsx:106–236` | ✓ DONE (2026-05-03, commit `876aee7`) |
 | 3 | **Watermark** | `tool-variants.jsx:368–648` | ✓ DONE (2026-05-03, commits `e90e54f` refactor + `7956f69` feat) |
-| 4 | **Sign** | `tool-variants.jsx:651–976` | next — recommended |
-| 5 | **OCR** | `tool-variants.jsx` (`OCRToolPage` + `OCRScannedPage` + `OCRExtractedBlock`) | pending |
+| 4 | **Sign** | `tool-variants.jsx:651–1062` | ✓ DONE (2026-05-03, commit `828a342`) |
+| 5 | **OCR** | `tool-variants.jsx` (`OCRToolPage` + `OCRScannedPage` + `OCRExtractedBlock`) | next — recommended |
 | 6 | **Edit** | `tool-variants.jsx` (`EditPDFToolPage` + helper glyphs + `EditPDFPreviewPage`) | pending |
 | 7 | **Compress** | `tool-page.jsx` (`ToolPage` — three states) | pending |
 | 8 | **Convert** | `tool-variants.jsx:238–340` | pending |
@@ -87,7 +87,7 @@ Routes live in `apps/web` only. Marketing-side `/<tool>-pdf` landing pages are a
 | `/merge-pdf` | `<MergeToolPage lang={lang} />` | ✓ live |
 | `/split-pdf` | `<SplitToolPage lang={lang} />` | ✓ live |
 | `/watermark-pdf` | `<WatermarkToolPage lang={lang} />` | ✓ live |
-| `/sign-pdf` | `<SignToolPage lang={lang} />` | pending |
+| `/sign-pdf` | `<SignToolPage lang={lang} />` | ✓ live |
 | `/ocr-pdf` | `<OCRToolPage lang={lang} />` | pending |
 | `/edit-pdf` | `<EditPDFToolPage lang={lang} />` | pending |
 | `/compress-pdf` | `<CompressToolPage lang={lang} />` | pending |
@@ -129,6 +129,17 @@ These choices apply to every subsequent widget port unless overridden:
 *Phase 6 advances tool by tool. After Split (Step 2), we'll have enough sample size to decide whether to extract a `ToolShell` abstraction in `@lunedoc/ui` or keep widgets self-contained.*
 
 ---
+
+## 9. Notes added during Sign port (Step 4 — 2026-05-03)
+
+- **Largest widget so far** (~745 lines TSX after the port, including the co-located `SignPreviewPage`). Three nested mode-switches: method (`draw`/`type`/`upload`) gates one section, style (`signature`/`classic`/`modern`) chooses font in the typed-style cards, field type (`signature`/`initials`/`date`/`text`) drives both the active-button highlight AND the live preview overlay's content + bounding-box dimensions.
+- **`renderContent: () => ReactNode` callback prop** for `SignPreviewPage` — preserves the prototype's pattern of letting `SignToolPage` own the field-rendering logic while `SignPreviewPage` owns the page chrome. Cleaner than passing 5 props (style, name, field, initials, today) into the preview component.
+- **Initials extraction kept simple.** The prototype uses `s[0]` indexed access; under strict `noUncheckedIndexedAccess` that's `string | undefined`. Switched to `s.charAt(0)` which always returns `string` (empty when out of bounds). `.filter(Boolean)` ensures non-empty strings, so `charAt(0)` always yields the actual first character. Fallback `'MH'` covers the empty-name case.
+- **`boxSizes` typed as `Record<FieldType, BoxSize>`.** Strict-type lookup means `boxSizes[fieldType]` is `BoxSize` (no `| undefined`) without an extra fallback. Cleaner than the prototype's `[fieldType] || fallback`.
+- **Drag-handle corners refactored to objects.** Prototype used `["tl","tr","bl","br"]` strings + `c[0]` / `c[1]` indexing — both flag under strict mode. Swapped to `{ id, top?, bottom?, left?, right? }` objects so each corner directly carries its absolute-position values. Cleaner type story; same visual.
+- **Caveat / Cormorant Garamond fonts not bundled.** The prototype's font stack is `'"Caveat", "Brush Script MT", cursive'` and `'"Cormorant Garamond", "Times New Roman", serif'`. In headless Chrome (and any user without these locally), the cascade falls back to system cursive/serif — different glyph metrics. **Accepted prototype-parity issue.** Production fix: load via `@font-face` or Google Fonts (same fonts, same fallbacks) when we exit prototype mode. Not blocking.
+- **Style-card preview reflects the typed name live.** Each of the 3 style cards renders the current `name` state in its own font/slant/skew, so the user can preview before clicking. Same as prototype.
+- **Locale flip re-seeds the typed name.** `useEffect([lang, t])` resets `name` from `t('sign_typed_default')` — verified: EN "Mira Holst" → TR (whatever TR's default is) on switch.
 
 ## 8. Notes added during Watermark port (Step 3 — 2026-05-03)
 
