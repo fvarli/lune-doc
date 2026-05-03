@@ -1,0 +1,31 @@
+---
+import ToolLandingLayout from '../../layouts/ToolLandingLayout.astro';
+import { SignToolPage } from '@lunedoc/tools';
+import { SIGN_PAGE } from '../../data/sign-pdf';
+import type { Lang } from '@lunedoc/i18n';
+
+export function getStaticPaths() {
+  return [
+    { params: { lang: 'tr' } },
+    { params: { lang: 'es' } },
+  ];
+}
+
+const { lang: rawLang } = Astro.params;
+const lang = rawLang as Lang;
+const content = SIGN_PAGE[lang];
+---
+
+<ToolLandingLayout
+  lang={lang}
+  canonicalPath="/sign-pdf"
+  toolDisplayName="Sign PDF"
+  toolIconName="sign"
+  toolBadgeTone={30}
+  content={content}
+  relatedToolKeys={['edit', 'watermark', 'compress', 'merge']}
+>
+  <div style="max-width: 1080px; margin: 0 auto; padding: 0 1.5rem;">
+    <SignToolPage lang={lang} client:load />
+  </div>
+</ToolLandingLayout>
