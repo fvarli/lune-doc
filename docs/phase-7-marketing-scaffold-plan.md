@@ -1,6 +1,6 @@
 # Lunedoc — Phase 7: `apps/marketing` Scaffold Plan
 
-**Status:** IN PROGRESS — Astro shell scaffolded 2026-05-03 (`749e685`); **OCR PDF landing page live in EN/TR/ES** as of `0659985` (Step 2). 1 of 8 tool pages done.
+**Status:** IN PROGRESS — Astro shell scaffolded 2026-05-03 (`749e685`); **3 of 8 tool pages live in EN/TR/ES**: OCR (`0659985`), Watermark (`b57df71`), Sign (`accbade`). Remaining: Edit, Compress, Convert, Merge, Split.
 
 **Companion docs:**
 - `docs/seo-tool-page-template.md` — the production template each `/<tool>-pdf` page must implement.
@@ -200,6 +200,17 @@ First production tool landing page. **Live at `/ocr-pdf`, `/tr/ocr-pdf`, `/es/oc
 ### Patterns established for the remaining 7 tool pages
 
 Each subsequent tool page is now ~3 files: a `data/<tool>-pdf.ts` content file (Record<Lang, ToolPageContent>), an `pages/<tool>-pdf.astro` (EN), and a `pages/[lang]/<tool>-pdf.astro` (TR/ES). The `ToolLandingLayout` and `seo/schema.ts` are reused as-is; no per-tool layout work needed. Tool widget hydrates as `client:load` inside the layout's slot.
+
+### Steps 3–4 — Watermark + Sign landing pages (2026-05-03, commits `b57df71`, `accbade`)
+
+Two more tool pages live, following the OCR pattern verbatim — each is exactly 3 files (data + EN page + TR/ES page). Built artifacts now total **10 pages**: 3 tools × 3 locales + the home placeholder.
+
+| Tool | Slug | Widget | Tone | Related-tools tiles |
+|---|---|---|---|---|
+| Watermark | `/watermark-pdf`, `/tr/watermark-pdf`, `/es/watermark-pdf` | `<WatermarkToolPage>` | 290 (edit family) | edit, sign, compress, merge |
+| Sign | `/sign-pdf`, `/tr/sign-pdf`, `/es/sign-pdf` | `<SignToolPage>` | 30 (security family) | edit, watermark, compress, merge |
+
+Sign-specific decision recorded: the FAQ is honest about cryptographic vs visible signatures. The "Is the signature legally binding?" answer in all three locales explains that this is a **visible** electronic signature (suitable for everyday agreements) and that for **binding** e-signatures under eIDAS / ESIGN, callers should use a certified provider — Lunedoc does not issue cryptographic signatures yet. Same disclosure appears in the trust strip ("Visible signature, not a cryptographic e-signature" / TR / ES equivalents). Two mentions per page, not buried.
 
 ### Known caveats
 
