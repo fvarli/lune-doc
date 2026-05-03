@@ -1,0 +1,31 @@
+---
+import ToolLandingLayout from '../../layouts/ToolLandingLayout.astro';
+import { EditPDFToolPage } from '@lunedoc/tools';
+import { EDIT_PAGE } from '../../data/edit-pdf';
+import type { Lang } from '@lunedoc/i18n';
+
+export function getStaticPaths() {
+  return [
+    { params: { lang: 'tr' } },
+    { params: { lang: 'es' } },
+  ];
+}
+
+const { lang: rawLang } = Astro.params;
+const lang = rawLang as Lang;
+const content = EDIT_PAGE[lang];
+---
+
+<ToolLandingLayout
+  lang={lang}
+  canonicalPath="/edit-pdf"
+  toolDisplayName="Edit PDF"
+  toolIconName="edit"
+  toolBadgeTone={290}
+  content={content}
+  relatedToolKeys={['watermark', 'sign', 'compress', 'merge']}
+>
+  <div style="max-width: 1080px; margin: 0 auto; padding: 0 1.5rem;">
+    <EditPDFToolPage lang={lang} client:load />
+  </div>
+</ToolLandingLayout>
