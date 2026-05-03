@@ -1,6 +1,6 @@
 # Lunedoc — Phase 6: Tool Widget Port Plan
 
-**Status:** IN PROGRESS — Merge, Split, Watermark, Sign ported on 2026-05-03 (commits `450fad8`, `876aee7`, `e90e54f`, `7956f69`, `828a342`) on branch `phase-2/scaffold`.
+**Status:** IN PROGRESS — Merge, Split, Watermark, Sign, OCR, Edit ported on 2026-05-03 (commits `450fad8`, `876aee7`, `e90e54f`, `7956f69`, `828a342`, `4c2ce68`, `d5e71d1`) on branch `phase-2/scaffold`. **6 of 8 tools done.**
 
 **Companion docs:**
 - `docs/phase-3-ui-package-plan.md` — `@lunedoc/ui` (consumed here).
@@ -63,9 +63,9 @@ Order chosen to maximize early validation (smallest widgets first) and finish wi
 | 2 | **Split** | `tool-variants.jsx:106–236` | ✓ DONE (2026-05-03, commit `876aee7`) |
 | 3 | **Watermark** | `tool-variants.jsx:368–648` | ✓ DONE (2026-05-03, commits `e90e54f` refactor + `7956f69` feat) |
 | 4 | **Sign** | `tool-variants.jsx:651–1062` | ✓ DONE (2026-05-03, commit `828a342`) |
-| 5 | **OCR** | `tool-variants.jsx` (`OCRToolPage` + `OCRScannedPage` + `OCRExtractedBlock`) | next — recommended |
-| 6 | **Edit** | `tool-variants.jsx` (`EditPDFToolPage` + helper glyphs + `EditPDFPreviewPage`) | pending |
-| 7 | **Compress** | `tool-page.jsx` (`ToolPage` — three states) | pending |
+| 5 | **OCR** | `tool-variants.jsx:1066–1386` (`OCRToolPage` + `OCRScannedPage` + `OCRExtractedBlock`) | ✓ DONE (2026-05-03, commit `4c2ce68`) |
+| 6 | **Edit** | `tool-variants.jsx:1389–1768` (`EditPDFToolPage` + 4 glyph helpers + `EditPDFPreviewPage` + `PreviewSelectionHandles`) | ✓ DONE (2026-05-03, commit `d5e71d1`) |
+| 7 | **Compress** | `tool-page.jsx` (`ToolPage` — three states) | next — recommended |
 | 8 | **Convert** | `tool-variants.jsx:238–340` | pending |
 
 **Why this order, not alphabetical:**
@@ -88,6 +88,8 @@ Routes live in `apps/web` only. Marketing-side `/<tool>-pdf` landing pages are a
 | `/split-pdf` | `<SplitToolPage lang={lang} />` | ✓ live |
 | `/watermark-pdf` | `<WatermarkToolPage lang={lang} />` | ✓ live |
 | `/sign-pdf` | `<SignToolPage lang={lang} />` | ✓ live |
+| `/ocr-pdf` | `<OCRToolPage lang={lang} />` | ✓ live |
+| `/edit-pdf` | `<EditPDFToolPage lang={lang} />` | ✓ live |
 | `/ocr-pdf` | `<OCRToolPage lang={lang} />` | pending |
 | `/edit-pdf` | `<EditPDFToolPage lang={lang} />` | pending |
 | `/compress-pdf` | `<CompressToolPage lang={lang} />` | pending |
@@ -129,6 +131,22 @@ These choices apply to every subsequent widget port unless overridden:
 *Phase 6 advances tool by tool. After Split (Step 2), we'll have enough sample size to decide whether to extract a `ToolShell` abstraction in `@lunedoc/ui` or keep widgets self-contained.*
 
 ---
+
+## 11. Notes added during Edit port (Step 6 — 2026-05-03)
+
+- **Most overlay-heavy widget so far.** Four overlay rectangles on the mock A4 page (highlight / redact / text / shape) are always visible; the active mode gets a selection ring + 4 drag-handle dots via `PreviewSelectionHandles`. Verified: clicking each tool button correctly shifts `activeMode` (Highlight → Redact → Shape).
+- **`Record<EditMode, BoxRect>` for selection-handle coords.** Same pattern as Sign's `boxSizes` lookup. Strict-mode-friendly: `boxes[tool]` returns `BoxRect` directly, no `| undefined`. Replaces the prototype's `if (!b) return null;` defensive guard which is no longer reachable.
+- **Drag corners refactored from `["tl","tr","bl","br"]` strings + `c[0]/c[1]` indexing into typed `DragCorner` objects** (same pattern as Sign).
+- **`EditGlyphText` button text concatenation.** The "Add text" button contains `<EditGlyphText>` (which renders the letter "T") as a sibling of the text label. `button.textContent` therefore reads `"TAdd text"`. This is a faithful port of the prototype — clicking the button works; only string-based query selectors care, and only in test code. Worth noting if a future test framework needs the label cleanly: either add an `aria-label` or split the label into a `<span>` whose text the test queries.
+- **`color: EditColor` typed prop on the preview** — the prototype passed the entire color object so the preview can read `color.swatch` AND `color.ink`. Kept the same shape; introduced `EditColor` interface with both fields.
+
+## 10. Notes added during OCR port (Step 5 — 2026-05-03)
+
+- **First widget with a 2-pane preview interior.** Left pane (`OCRScannedPage`) is the tinted scanned mock with grain texture and `transform: rotate(-0.4deg)` to suggest a hand-photographed scan; right pane (`OCRExtractedBlock`) is a faux text-editor mock with traffic lights and the recognized invoice as monospace text.
+- **Per-language sample invoices preserved verbatim** (~12 lines × 3 locales, accepted hardcoded mock content per the existing prototype rule). Strict typing via `Record<SampleLang, SampleInvoice>` where `SampleLang = 'en' | 'tr' | 'es'`.
+- **Auto-detect logic preserved.** `sampleLang = ocrLang === "auto" ? (lang === "tr" || lang === "es" ? lang : "en") : ocrLang;` — verified live: UI=TR + ocrLang=AUTO selects TR sample; UI=TR + ocrLang=EN explicit overrides to EN. Strict typing `OcrLang` (4 values, includes `auto`) vs `SampleLang` (3 values, excludes `auto`) cleanly separates the two state spaces.
+- **`samples[sampleLang]` direct access** (no `|| samples.en` fallback). With `Record<SampleLang, SampleInvoice>` and `SampleLang` narrowed by the auto-resolution logic, the lookup can never be undefined. Cleaner than the prototype's defensive fallback.
+- **Mode toggle visible verification.** Clicking "Searchable PDF" swaps the right-pane chip from `.TXT` → `.PDF` and the faux-editor filename from `scanned-invoice.txt` → `scanned-invoice.pdf`.
 
 ## 9. Notes added during Sign port (Step 4 — 2026-05-03)
 
