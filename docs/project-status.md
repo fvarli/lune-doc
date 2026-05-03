@@ -162,8 +162,11 @@ Status as of 2026-05-03 — branch `phase-2/scaffold`:
 - **Phase 2 (scaffold `apps/web`)** — ✓ DONE (commit `84680d3`). Vite + React 19 + TS 6 workspace boots; `pnpm web:dev` serves a "Hello Lunedoc" page on port 5173. See `docs/phase-2-vite-scaffold-plan.md`.
 - **Phase 3 (extract design system into `@lunedoc/ui`)** — ✓ DONE (commits `8305501..44f8f79`, 5 step-commits). `apps/web` now renders a real Lunedoc shell (Header → main → Footer) entirely from `@lunedoc/ui`. See `docs/phase-3-ui-package-plan.md`.
   - **Inside `@lunedoc/ui`:** `tokens.css`; `Logo`/`LogoMark`/`BRAND_NAME`; `Icon` + 46-value `IconName` union; `TOOLS` (typed via `as const satisfies`) + `ToolIcon`/`ToolCard`/`PdfThumb` + `Tool`/`ToolKey`/`ToolCategory`; `Header`/`Footer`/`MobileBottomNav`/`LangSwitch`; `Lang` type.
-  - **Known temporary limitation:** `Header`/`Footer`/`MobileBottomNav`/`ToolCard` use a local `t = (k) => k` stub. Until Phase 4 lands `@lunedoc/i18n`, labels in those components render as their raw i18n keys.
-- **Phase 4 (extract `i18n.jsx` into `@lunedoc/i18n`)** — next workstream. Replaces the stub with the real `useI18n(lang)` hook.
+- **Phase 4 (extract `i18n.jsx` into `@lunedoc/i18n` + wire `@lunedoc/ui` to it)** — ✓ DONE (commits `2b5c5a2..5d5c70d`, 3 commits). Replaces the Phase-3 `t = (k) => k` stubs with a real `useI18n(lang)` hook. `apps/web` has a live `<LangSwitch>` in the page; clicking EN/TR/ES live-swaps every label across Header, ToolCard, Footer simultaneously. See `docs/phase-4-i18n-package-plan.md`.
+  - **Inside `@lunedoc/i18n`:** `I18N_STRINGS` (336 keys × en/tr/es identical key sets); `getStrings`, `createTranslator`, `useI18n` (memoized); `Lang` + `TranslationKey` (derived from EN JSON) types.
+  - **Eager-load decision:** all 3 locales bundled into `apps/web`'s initial JS (~12 kB gzipped overhead). Threshold for switching to dynamic per-locale imports is ~5 locales — not yet.
+  - **Open thread:** `I18N_ARTICLES` (blog article copy, lines 1126–1182 of `docs/components/i18n.jsx`) remains in the prototype only; will move when the blog pages get ported.
+- **Next phase** — your choice between (a) extract `I18N_ARTICLES` (small), or (b) open Phase 6 by porting the first real tool widget (e.g. `MergeToolPage`) into `@lunedoc/ui`, using `@lunedoc/ui` + `@lunedoc/i18n` as foundations. See `docs/phase-4-i18n-package-plan.md` §5 for details.
 
 Original migration-plan items still useful as long-term reference:
 - File tree mapping (current `docs/components/*.jsx` → `src/components/*.tsx`).
