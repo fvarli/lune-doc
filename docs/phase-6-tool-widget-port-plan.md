@@ -1,6 +1,6 @@
 # Lunedoc — Phase 6: Tool Widget Port Plan
 
-**Status:** IN PROGRESS — Merge + Split ported on 2026-05-03 (commits `450fad8`, `876aee7`) on branch `phase-2/scaffold`.
+**Status:** IN PROGRESS — Merge, Split, Watermark ported on 2026-05-03 (commits `450fad8`, `876aee7`, `e90e54f`, `7956f69`) on branch `phase-2/scaffold`.
 
 **Companion docs:**
 - `docs/phase-3-ui-package-plan.md` — `@lunedoc/ui` (consumed here).
@@ -61,8 +61,8 @@ Order chosen to maximize early validation (smallest widgets first) and finish wi
 |---|---|---|---|
 | 1 | **Merge** | `tool-variants.jsx:6–104` | ✓ DONE (2026-05-03, commit `450fad8`) |
 | 2 | **Split** | `tool-variants.jsx:106–236` | ✓ DONE (2026-05-03, commit `876aee7`) |
-| 3 | **Watermark** | `tool-variants.jsx:368–574` | next — recommended |
-| 4 | **Sign** | `tool-variants.jsx:651–976` | pending |
+| 3 | **Watermark** | `tool-variants.jsx:368–648` | ✓ DONE (2026-05-03, commits `e90e54f` refactor + `7956f69` feat) |
+| 4 | **Sign** | `tool-variants.jsx:651–976` | next — recommended |
 | 5 | **OCR** | `tool-variants.jsx` (`OCRToolPage` + `OCRScannedPage` + `OCRExtractedBlock`) | pending |
 | 6 | **Edit** | `tool-variants.jsx` (`EditPDFToolPage` + helper glyphs + `EditPDFPreviewPage`) | pending |
 | 7 | **Compress** | `tool-page.jsx` (`ToolPage` — three states) | pending |
@@ -86,7 +86,7 @@ Routes live in `apps/web` only. Marketing-side `/<tool>-pdf` landing pages are a
 | `/` | `HomePage` (the existing smoke page with locale switch + ToolCard + Merge link) | live |
 | `/merge-pdf` | `<MergeToolPage lang={lang} />` | ✓ live |
 | `/split-pdf` | `<SplitToolPage lang={lang} />` | ✓ live |
-| `/watermark-pdf` | `<WatermarkToolPage lang={lang} />` | pending |
+| `/watermark-pdf` | `<WatermarkToolPage lang={lang} />` | ✓ live |
 | `/sign-pdf` | `<SignToolPage lang={lang} />` | pending |
 | `/ocr-pdf` | `<OCRToolPage lang={lang} />` | pending |
 | `/edit-pdf` | `<EditPDFToolPage lang={lang} />` | pending |
@@ -129,6 +129,16 @@ These choices apply to every subsequent widget port unless overridden:
 *Phase 6 advances tool by tool. After Split (Step 2), we'll have enough sample size to decide whether to extract a `ToolShell` abstraction in `@lunedoc/ui` or keep widgets self-contained.*
 
 ---
+
+## 8. Notes added during Watermark port (Step 3 — 2026-05-03)
+
+- **First widget with a 2-pane layout** (controls panel + preview panel). Prototype's grid `minmax(0, 1fr) minmax(0, 420px)` preserved verbatim. Preview is `position: sticky`, so it stays in view while the user scrolls through controls.
+- **`WatermarkPreviewPage` co-located in the same file.** Only one consumer; no benefit splitting now. If a second tool ever needs the same A4 mock-page chrome, lift to `packages/tools/src/_internal/`.
+- **`btnGhost` extraction did NOT add a third user.** Watermark doesn't use `btnGhost` — its controls are all inline-styled. The extraction was done as planned (Merge + Split now share `_internal/btnGhost.ts`); Watermark just doesn't import it. Two real users, but the helper is now in its proper home for any future tool that needs a 28×28 ghost row-action.
+- **`useEffect([lang, t])` re-seeds the watermark text** when locale changes. Verified live: switching EN→TR re-fills the input from `CONFIDENTIAL` → `GİZLİ`, EN→ES → `CONFIDENCIAL`. The overlay updates in lockstep.
+- **`setPosition(cell.id as PositionId)`** has a single type assertion at the position-grid mapping. The `cells` array uses `PositionId | null` so `null`-cells are filtered out, but TS doesn't narrow `cell.id` from `PositionId | null` to `PositionId` after the early `if (!cell.id) return;` because `cell` is the iteratee, not the captured variable. The assertion is exact (we already verified non-null above) and is the minimal hack that satisfies strict mode without inflating the types.
+- **`positions[2]!`** non-null assertion for the "center" fallback. The array literal has 5 entries; index 2 is structurally guaranteed. Per CLAUDE.md "trust internal code," this is the right level of trust.
+- **No `setLang` prop, no `mobile` prop.** Same as Merge/Split: App owns lang state; mobile responsiveness will come via media/container queries when we open a viewport story.
 
 ## 7. Notes added during Split port (Step 2 — 2026-05-03)
 
