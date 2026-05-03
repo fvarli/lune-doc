@@ -13,9 +13,9 @@ function Logo({ size = 18, name = BRAND_NAME }) {
   );
 }
 
-// Distinctive mark: a folded-corner page rendered as two interlocking
-// trapezoids — the negative space forms a "P". Geometric, ownable, scales
-// to a 16px favicon without losing identity.
+// Distinctive mark: a folded-corner page in accent gradient, with a clean
+// geometric "L" (vertical stem + foot) in white. Scales cleanly to a 16px
+// favicon without losing identity.
 function LogoMark({ size = 24 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" aria-hidden="true">
@@ -29,8 +29,8 @@ function LogoMark({ size = 24 }) {
       <rect x="2" y="2" width="24" height="24" rx="7" fill="url(#pl-g)" />
       {/* Folded corner — top right cut */}
       <path d="M19 2 L26 9 L19 9 Z" fill="color-mix(in oklch, var(--accent), white 24%)" />
-      {/* Inner glyph: stacked pages forming a 'P'-like notch in negative space */}
-      <path d="M9 8 H17 a3 3 0 0 1 3 3 v2 a3 3 0 0 1 -3 3 H12 v4 H9 Z M12 11 V13 H16 a0.5 0.5 0 0 0 0 -2 Z" fill="white" />
+      {/* Inner glyph: geometric "L" — vertical stem joined to a horizontal foot */}
+      <path d="M8 7 H12 V17 H20 V21 H8 Z" fill="white" />
     </svg>
   );
 }
