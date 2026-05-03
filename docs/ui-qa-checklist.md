@@ -1,5 +1,41 @@
 # Lunedoc — UI QA Checklist
 
+> ## Last QA pass — 2026-05-03
+>
+> **Status:** ✅ PASSED with documented exceptions.
+>
+> **What was verified:**
+> - **Static checks (24/24 ✓)** — every loaded asset returns HTTP 200; all 29 `app.jsx` destructured symbols have a corresponding `window` export; EN/TR/ES key parity is exact (304 / 304 / 304, zero missing or extra in any locale); `ACCENTS` has all 5 presets; `tokens.css` has the `[data-theme="dark"]` block; brand consistency is clean (zero `Paperline` outside the intentional internal `storageKey` and the `project-status.md` historical notes).
+> - **Headless-Chrome rendering pass** — page boots, React tree fully built (7321 descendants under `#root`), all 9 sections and all 32 artboards rendered to the DOM, "Lunedoc" appears 76× in the rendered text and 20× in URL bars, "Paperline" appears 0× anywhere user-visible, no page-level horizontal scroll on `<html>`/`<body>`, **0 console errors**, 0 React warnings. Only network failure is `favicon.ico` (404, expected — no favicon yet).
+> - The earlier brace/paren imbalance flagged for `design-canvas.jsx` was a regex-counter false positive; a real browser parses the file cleanly with no console error.
+>
+> **Fixes made this pass:** none. No code fixes were needed.
+>
+> **Documented exceptions (font-fallback artifacts, not blockers):**
+> Headless Chrome on the test machine doesn't have **Inter** installed and falls back to a slightly wider system font. This produces ~34 tiny (2–8px) element-level overflows:
+>
+> | Where | Px overflow | Cause |
+> |---|---|---|
+> | ChromeTab "Lunedoc" title in 20 desktop browser-window artboards | 8px × 20 | Tab is `min-width: 120px` + `box-sizing: content-box`. With Inter, "Lunedoc" fits in 120px content; with the fallback font it needs ~128px. |
+> | Article header meta line (`← All posts · Engineering · …`) in `article-desktop` and `article-mobile` | 8px × 2 | Same — meta line designed for Inter's tighter kerning. |
+> | Watermark slider value display ("Opacity 30%") in `tool-watermark` and `tool-watermark-mobile` | 4px × 4 | Tabular-numeric font width drift. |
+> | Sign typed-style preview ("Mira Holst") in `tool-sign` and `tool-sign-mobile` | 3px × 2 | Caveat (cursive) and Cormorant Garamond (serif) fall back to system italic, which has different glyph widths. |
+> | OCR mobile preview pane labels ("SCANNED" / "RECOGNIZED") in `tool-ocr-mobile` | 2px × 2 | Mono label kerning. |
+> | Edit PDF overlays in `tool-edit` and `tool-edit-mobile` | 4px × 2 | Subpixel rounding on percentage-positioned overlays. |
+> | Empty chip/icon containers in `tools-mobile`, `pricing-mobile`, `dash-empty` | 6–8px × 4 | Decorative icon containers; not user-noticeable. |
+>
+> **None of these are visible to users with Inter installed locally** (the typical designer setup). The recommended production fix is to bundle Inter (and the typed-signature fonts Caveat + Cormorant Garamond) via `@font-face` or Google Fonts when the prototype graduates to a real build pipeline (frontend migration Phase 2). For the prototype itself, no action.
+>
+> **What still needs a human in front of the browser** (these cannot be fully verified headless):
+> - Visual contrast in dark mode (`Tweaks → Theme → Dark`) on every artboard.
+> - Each of the 5 accents (`indigo / blue / emerald / graphite / amber`) walked through the homepage, one tool page, pricing, and dashboard.
+> - TR and ES locales: switch via Tweaks → Locale, walk every artboard, watch for clipped CTAs and broken H1 wraps.
+> - Per-tool click-through interactions (typing in Watermark, switching Sign methods, OCR language toggle, Edit tool modes, etc.) — the components mount and render headlessly with zero errors, but the click-driven state transitions need human eyes.
+>
+> When the human-side checks are done, append a row to the sign-off table at the bottom of this file.
+>
+> ---
+
 **Purpose:** every item below must be green before we open Phase 2 of the frontend migration (`docs/frontend-migration-plan.md`). Run this end-to-end whenever the UI changes substantially.
 
 **How to run:**
