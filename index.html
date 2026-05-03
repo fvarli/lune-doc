@@ -4,16 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Lunedoc — design canvas</title>
-  <!--
-    Cache-busting version stamp for local prototype assets only.
-    Bump on each prototype change so browsers don't serve stale JSX/CSS.
-    CDN libs (React, ReactDOM, Babel) are pinned upstream and don't need busting.
-  -->
-  <link rel="stylesheet" href="docs/stylesheets/tokens.css?v=20260503" />
   <style>
     html, body { margin: 0; padding: 0; overflow: hidden; }
     #root { width: 100%; height: 100%; }
   </style>
+  <!--
+    Local prototype assets are loaded with a per-page-load version stamp so
+    the browser never serves stale JSX/CSS during iteration. No build tool —
+    just Date.now() appended as ?v=. CDN libs (React, ReactDOM, Babel) stay
+    plain blocking scripts; they're versioned upstream.
+  -->
+  <script>
+    window.__LUNEDOC_ASSET_VERSION__ = String(Date.now());
+    (function () {
+      var v = window.__LUNEDOC_ASSET_VERSION__;
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'docs/stylesheets/tokens.css?v=' + v;
+      document.head.appendChild(link);
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>
@@ -22,22 +32,41 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <script type="text/babel" src="docs/components/design-canvas.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/tweaks-panel.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/ios-frame.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/browser-window.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/i18n.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/primitives.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/homepage.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/tool-page.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/auth-page.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/blog-page.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/tool-variants.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/tools-index-page.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/pricing-page.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/dashboard-page.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/article-page.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/system-inventory.jsx?v=20260503"></script>
-  <script type="text/babel" src="docs/components/app.jsx?v=20260503"></script>
+  <!--
+    Local JSX scripts injected in dependency order with the same version stamp.
+    Appended synchronously before DOMContentLoaded so Babel's auto-scanner
+    discovers them in document order and executes them sequentially — same
+    semantics as having 17 hand-written <script type="text/babel"> tags.
+  -->
+  <script>
+    (function () {
+      var v = window.__LUNEDOC_ASSET_VERSION__;
+      var files = [
+        'docs/components/design-canvas.jsx',
+        'docs/components/tweaks-panel.jsx',
+        'docs/components/ios-frame.jsx',
+        'docs/components/browser-window.jsx',
+        'docs/components/i18n.jsx',
+        'docs/components/primitives.jsx',
+        'docs/components/homepage.jsx',
+        'docs/components/tool-page.jsx',
+        'docs/components/auth-page.jsx',
+        'docs/components/blog-page.jsx',
+        'docs/components/tool-variants.jsx',
+        'docs/components/tools-index-page.jsx',
+        'docs/components/pricing-page.jsx',
+        'docs/components/dashboard-page.jsx',
+        'docs/components/article-page.jsx',
+        'docs/components/system-inventory.jsx',
+        'docs/components/app.jsx',
+      ];
+      for (var i = 0; i < files.length; i++) {
+        var s = document.createElement('script');
+        s.type = 'text/babel';
+        s.src = files[i] + '?v=' + v;
+        document.body.appendChild(s);
+      }
+    })();
+  </script>
 </body>
 </html>
