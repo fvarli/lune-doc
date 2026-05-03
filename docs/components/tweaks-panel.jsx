@@ -157,8 +157,8 @@ function useTweaks(defaults) {
 // The close button posts __edit_mode_dismissed so the host's toolbar toggle
 // flips off in lockstep; the host echoes __deactivate_edit_mode back which
 // is what actually hides the panel.
-function TweaksPanel({ title = 'Tweaks', children }) {
-  const [open, setOpen] = React.useState(false);
+function TweaksPanel({ title = 'Tweaks', defaultOpen = false, children }) {
+  const [open, setOpen] = React.useState(defaultOpen);
   const dragRef = React.useRef(null);
   const offsetRef = React.useRef({ x: 16, y: 16 });
   const PAD = 16;
@@ -227,7 +227,42 @@ function TweaksPanel({ title = 'Tweaks', children }) {
     window.addEventListener('mouseup', up);
   };
 
-  if (!open) return null;
+  // When closed, surface a small floating trigger so the panel is reachable
+  // in standalone use (i.e. without the host-postMessage protocol that the
+  // original Claude Design environment provided).
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Open ${title}`}
+        title={title}
+        style={{
+          position: 'fixed', right: 16, bottom: 16, zIndex: 2147483646,
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '8px 14px 8px 10px',
+          background: 'rgba(250,249,247,.92)', color: '#29261b',
+          border: '.5px solid rgba(0,0,0,.12)', borderRadius: 999,
+          boxShadow: '0 8px 24px -8px rgba(0,0,0,.22), 0 1px 0 rgba(255,255,255,.5) inset',
+          font: '12px/1 ui-sans-serif,system-ui,-apple-system,sans-serif',
+          fontWeight: 600, letterSpacing: '.01em', cursor: 'pointer',
+          WebkitBackdropFilter: 'blur(20px) saturate(160%)',
+          backdropFilter: 'blur(20px) saturate(160%)',
+        }}
+      >
+        <svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+          <line x1="2.5" y1="3.5" x2="11.5" y2="3.5" />
+          <circle cx="5" cy="3.5" r="1.5" fill="rgba(250,249,247,.92)" />
+          <line x1="2.5" y1="7" x2="11.5" y2="7" />
+          <circle cx="9" cy="7" r="1.5" fill="rgba(250,249,247,.92)" />
+          <line x1="2.5" y1="10.5" x2="11.5" y2="10.5" />
+          <circle cx="6" cy="10.5" r="1.5" fill="rgba(250,249,247,.92)" />
+        </svg>
+        {title}
+      </button>
+    );
+  }
+
   return (
     <>
       <style>{__TWEAKS_STYLE}</style>
