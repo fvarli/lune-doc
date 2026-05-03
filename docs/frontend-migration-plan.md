@@ -30,7 +30,7 @@ Two frontends, one shared design system, one shared i18n layer. Backend and mobi
 | Surface | Stack | URL | Why |
 |---|---|---|---|
 | Marketing site | **Astro** + React islands + TS | `lunedoc.app` | SEO landing pages need pre-rendered HTML in the response. Astro emits static HTML and only hydrates the interactive bits (the actual tool widgets) as islands. |
-| App / web | **Vite + React + TypeScript + React Router** | `app.lunedoc.app` | The signed-in workflow is a stateful SPA. Vite gives the fastest dev loop. No SSR needed (all routes are gated). |
+| App / web | **Vite + React + TypeScript + React Router** | `app.lunedoc.app` | The signed-in workflow is a stateful SPA. Vite gives the fastest dev loop. No SSR needed (all routes are gated). Versions track current Vite defaults (React 19.x, Vite 8.x, TS 6.x as of 2026-05) — see `docs/phase-2-vite-scaffold-plan.md` §1.5. The prototype's React 18 UMD load is a separate stack and is not aligned. |
 | Backend | FastAPI + Celery + Redis + Postgres | `api.lunedoc.app` | Per `docs/backend-api-plan.md`. **Not part of this plan.** |
 | Mobile | Flutter | iOS + Android | Same API as web. **Not part of this plan.** |
 

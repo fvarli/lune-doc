@@ -91,6 +91,22 @@ Pin to current LTS (Node 22.x as of 2026-05). Match the user's local install whe
 22
 ```
 
+### 1.5 Versions in the scaffold
+
+`pnpm create vite@latest web --template react-ts` follows the Vite team's current defaults — we do **not** pin major versions in this plan. As of the scaffold landing (2026-05-03), that yields:
+
+- **React 19.2** (and `react-dom` 19.2)
+- **Vite 8.0**
+- **TypeScript 6.0**
+- **ESLint 10**
+- **`@vitejs/plugin-react` 6**
+
+These versions are accepted as-is unless a compatibility issue surfaces during a later migration phase (§5). Specifically:
+
+- We do **not** downgrade to React 18 just to "match the prototype." The prototype loads React 18 UMD from a CDN; that's a separate stack and stays exactly as it is until Phase 8 cutover.
+- We do **not** downgrade TypeScript to 5.x for "stability." TS 6 is fine for an empty workspace; if a port in Phase 3+ surfaces a typing regression, we'll handle it then.
+- We do **not** pre-pin majors in `package.json` (no `"react": "18.x"`). Ranges from the Vite scaffold (`^19.2`, `^8.0`, etc.) stay.
+
 ### 1.5 Root `.gitignore` additions
 
 Append these lines (the existing `.gitignore` already covers `.idea/` etc.):
