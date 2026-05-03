@@ -1,6 +1,14 @@
 # Lunedoc — Phase 3: `@lunedoc/ui` Extraction Plan
 
-**Status:** documentation only. Phase 3 has **not** started. The prototype (`index.html` + `docs/components/*.jsx`) remains the canonical UI source until this plan's acceptance criteria are met.
+> **✓ DONE (2026-05-03)** — commits `8305501..44f8f79` on branch `phase-2/scaffold` (5 commits, one per step).
+>
+> Acceptance criteria §6.1, §6.2, §6.3, §6.4 all green. §6.5 (this doc updated, plus `project-status.md`) closed in the `docs: mark Phase 3 UI extraction complete` follow-up.
+>
+> **What now lives in `@lunedoc/ui`:** `tokens.css`; `BRAND_NAME`, `Logo`, `LogoMark`; `Icon` + `IconName` (46-value union); `TOOLS` (typed via `as const satisfies`), `ToolIcon`, `ToolCard`, `PdfThumb`, `Tool`/`ToolKey`/`ToolCategory` types; `Header`, `Footer`, `MobileBottomNav`, `LangSwitch`; `Lang` type.
+>
+> **Known temporary limitation:** `Header`, `Footer`, `MobileBottomNav`, and `ToolCard` use a local `t = (k: string) => k` stub. Until Phase 4 lands `@lunedoc/i18n`, labels in those components render as their i18n keys (`nav_tools`, `foot_copy`, `t_merge`, etc.) — visible signal that translations are still pending.
+
+**Status:** ✓ DONE (see banner above). The original "what we plan to do" body is preserved below for historical context. The prototype (`index.html` + `docs/components/*.jsx`) was untouched throughout — it remains the canonical UI source until Phase 8 cutover.
 
 **Companion docs:**
 - `docs/frontend-migration-plan.md` — full 8-phase journey; this doc expands Phase 3.
@@ -218,3 +226,17 @@ Phase 3 is **DONE** only when every item below is true. If any is false, fix it 
 ---
 
 *When 6.1–6.5 are all green, merge the `phase-3/ui-package` PR. Phase 4 (extract `i18n.jsx` into `@lunedoc/i18n`, replace the Phase 3 stub) becomes the next workstream — the migrated `Header` will start showing real translated labels the moment it lands.*
+
+---
+
+## Deviations from this plan during execution (2026-05-03)
+
+Recorded for transparency. None of these are visual or behavior changes; they're pragmatic typing/scoping calls made during the actual port.
+
+- **Stub pattern extended beyond Header.** §4 step 5 prescribed the `t = (k: string) => k` stub for the `Header`. We applied the same pattern to `Footer`, `MobileBottomNav`, and `ToolCard` since they all consume `useI18n` in the prototype. Consistent and in-spirit; replaces in one sweep when Phase 4 lands.
+- **`TOOLS` typing uses `as const satisfies`.** The plan said "strict types: `interface Tool { … }`". We went one step further and made `TOOLS` an `as const satisfies readonly { … }[]`, then derived `ToolKey` from `TOOLS` (`(typeof TOOLS)[number]['key']`). Adding/removing a tool now automatically updates the union — no hand-maintained literal-string list.
+- **`lang` props on `Footer` / `MobileBottomNav` / `ToolCard` accepted but unused in Phase 3.** Kept in the type signatures for forward compat; not destructured locally to avoid `noUnusedParameters`. Phase 4 turns them into real consumers in one diff.
+- **`packages/ui` needed its own `@types/react` + `@types/react-dom` devDeps.** Discovered during the Logo port: `tsc -b` from `apps/web` couldn't find `react/jsx-runtime` types when traversing into the workspace package. Added matching versions; pnpm symlinks them from the central store with no duplication.
+- **`PdfThumb` API quirk preserved as-is.** The prototype's `PdfThumb` accepts `{ w, h, page }`, but several callers in `tool-variants.jsx` pass `{ pages, size }` — names that don't match anything in the signature. Faithful port preserved the existing signature; the API drift is a pre-existing prototype issue and gets harmonized in Phase 6 when the tool widgets get ported (their callers).
+- **Storybook not set up.** §1 listed Storybook as desirable but optional. Held off; not blocking. Add when actually browsing the design system in isolation becomes valuable.
+- **Acceptance §6.5 (doc updates) closed in a follow-up commit.** The previous 5 commits stayed code-only per the user's "stop after each step" rule; this docs commit closes the loop.

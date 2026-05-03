@@ -156,8 +156,16 @@ In recommended execution order. Each item is a self-contained workstream.
 - Verify the design canvas itself: section reordering, focus mode, sidecar persistence.
 - Resolve any remaining brand placeholders or lorem.
 
-### R3 — Vite + React migration plan
-Document-only at first. Cover:
+### R3 — Vite + React migration — IN PROGRESS
+Status as of 2026-05-03 — branch `phase-2/scaffold`:
+
+- **Phase 2 (scaffold `apps/web`)** — ✓ DONE (commit `84680d3`). Vite + React 19 + TS 6 workspace boots; `pnpm web:dev` serves a "Hello Lunedoc" page on port 5173. See `docs/phase-2-vite-scaffold-plan.md`.
+- **Phase 3 (extract design system into `@lunedoc/ui`)** — ✓ DONE (commits `8305501..44f8f79`, 5 step-commits). `apps/web` now renders a real Lunedoc shell (Header → main → Footer) entirely from `@lunedoc/ui`. See `docs/phase-3-ui-package-plan.md`.
+  - **Inside `@lunedoc/ui`:** `tokens.css`; `Logo`/`LogoMark`/`BRAND_NAME`; `Icon` + 46-value `IconName` union; `TOOLS` (typed via `as const satisfies`) + `ToolIcon`/`ToolCard`/`PdfThumb` + `Tool`/`ToolKey`/`ToolCategory`; `Header`/`Footer`/`MobileBottomNav`/`LangSwitch`; `Lang` type.
+  - **Known temporary limitation:** `Header`/`Footer`/`MobileBottomNav`/`ToolCard` use a local `t = (k) => k` stub. Until Phase 4 lands `@lunedoc/i18n`, labels in those components render as their raw i18n keys.
+- **Phase 4 (extract `i18n.jsx` into `@lunedoc/i18n`)** — next workstream. Replaces the stub with the real `useI18n(lang)` hook.
+
+Original migration-plan items still useful as long-term reference:
 - File tree mapping (current `docs/components/*.jsx` → `src/components/*.tsx`).
 - TypeScript adoption strategy (gradual, starting with `i18n` + `primitives`).
 - How `window`-globals become real ES module imports.

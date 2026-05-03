@@ -75,6 +75,9 @@ Eight phases. Each one is small, reversible, and ends in a working prototype + a
 - **Exit criterion:** `pnpm --filter marketing dev` serves an empty `/ocr-pdf` page in all three locales.
 
 ### Phase 4 — Extract tokens + primitives into `packages/ui`
+
+> **Note (2026-05-03):** the per-phase docs adopted a tighter numbering where this work shipped as **Phase 3** (`apps/marketing` scaffold deferred). Delivered as commits `8305501..44f8f79` on branch `phase-2/scaffold` — see `docs/phase-3-ui-package-plan.md` for the executed plan, deviations, and acceptance check. The bullet list below remains accurate as the long-term goal description.
+
 - **Goal:** move the design system out of `docs/components/primitives.jsx` into a shared, typed, tree-shakable library.
 - **Action:**
   - Create `packages/ui/` workspace.
