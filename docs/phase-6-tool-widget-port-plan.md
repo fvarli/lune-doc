@@ -1,6 +1,6 @@
 # Lunedoc — Phase 6: Tool Widget Port Plan
 
-**Status:** IN PROGRESS — Merge, Split, Watermark, Sign, OCR, Edit ported on 2026-05-03 (commits `450fad8`, `876aee7`, `e90e54f`, `7956f69`, `828a342`, `4c2ce68`, `d5e71d1`) on branch `phase-2/scaffold`. **6 of 8 tools done.**
+**Status:** ✓ DONE (2026-05-03) — all 8 widgets ported. Commit range: `450fad8..8c6e5ff` on branch `phase-2/scaffold`.
 
 **Companion docs:**
 - `docs/phase-3-ui-package-plan.md` — `@lunedoc/ui` (consumed here).
@@ -65,8 +65,8 @@ Order chosen to maximize early validation (smallest widgets first) and finish wi
 | 4 | **Sign** | `tool-variants.jsx:651–1062` | ✓ DONE (2026-05-03, commit `828a342`) |
 | 5 | **OCR** | `tool-variants.jsx:1066–1386` (`OCRToolPage` + `OCRScannedPage` + `OCRExtractedBlock`) | ✓ DONE (2026-05-03, commit `4c2ce68`) |
 | 6 | **Edit** | `tool-variants.jsx:1389–1768` (`EditPDFToolPage` + 4 glyph helpers + `EditPDFPreviewPage` + `PreviewSelectionHandles`) | ✓ DONE (2026-05-03, commit `d5e71d1`) |
-| 7 | **Compress** | `tool-page.jsx` (`ToolPage` — three states) | next — recommended |
-| 8 | **Convert** | `tool-variants.jsx:238–340` | pending |
+| 7 | **Compress** | `tool-page.jsx` (`ToolPage` + `EmptyState`/`UploadingState`/`DoneState`/`FileSummary`/`QualityRow`) | ✓ DONE (2026-05-03, commit `995f16c`) |
+| 8 | **Convert** | `tool-variants.jsx:238–365` (`ConvertToolPage` + `FormatPicker`) | ✓ DONE (2026-05-03, commit `8c6e5ff`) |
 
 **Why this order, not alphabetical:**
 - **Merge / Split** are tiny (file list + reorder). Easy validation of the package + routing pipeline (done).
@@ -90,6 +90,8 @@ Routes live in `apps/web` only. Marketing-side `/<tool>-pdf` landing pages are a
 | `/sign-pdf` | `<SignToolPage lang={lang} />` | ✓ live |
 | `/ocr-pdf` | `<OCRToolPage lang={lang} />` | ✓ live |
 | `/edit-pdf` | `<EditPDFToolPage lang={lang} />` | ✓ live |
+| `/compress-pdf` | `<CompressToolPage lang={lang} />` | ✓ live |
+| `/convert-pdf` | `<ConvertToolPage lang={lang} />` | ✓ live |
 | `/ocr-pdf` | `<OCRToolPage lang={lang} />` | pending |
 | `/edit-pdf` | `<EditPDFToolPage lang={lang} />` | pending |
 | `/compress-pdf` | `<CompressToolPage lang={lang} />` | pending |
@@ -128,9 +130,24 @@ These choices apply to every subsequent widget port unless overridden:
 
 ---
 
-*Phase 6 advances tool by tool. After Split (Step 2), we'll have enough sample size to decide whether to extract a `ToolShell` abstraction in `@lunedoc/ui` or keep widgets self-contained.*
+*Phase 6 is **complete** as of 2026-05-03. All 8 PDF tool widgets live in `@lunedoc/tools`, all 8 routes serve in `apps/web`, and the prototype was untouched throughout. The `ToolShell` abstraction question (raised after Step 2) was left **unaddressed** — across 8 widgets, the duplicated outer chrome (back link → tinted icon badge → title row → optional doc strip → grid of cards → bottom CTAs) is real but each tool's deviations are non-trivial enough that a one-shape-fits-all shell would either restrict callers or accumulate prop bloat. Defer the abstraction unless a 9th tool surfaces it as obvious. Closing this phase opens Phase 7 — see `docs/project-status.md` for the next-workstream choice.*
 
 ---
+
+## 13. Notes added during Convert port (Step 8 — 2026-05-03)
+
+- **Smallest of the eight.** Format-pair picker (from / to among PDF/DOCX/XLSX/PPTX/JPG/PNG), dropzone hint with interpolation (`t('convert_drop').replace('{from}', from)`), three checkbox-style toggles (OCR / preserve layout / extract images), and CTA. No 2-pane preview.
+- **Strict format types.** `Format = 'PDF' \| 'DOCX' \| 'XLSX' \| 'PPTX' \| 'JPG' \| 'PNG'` literal union. `FORMATS` declared as `readonly Format[]` so `.filter(...)` returns `readonly Format[]`. The `<FormatPicker>` props accept `readonly Format[]` to satisfy strict variance.
+- **Filtered to-options.** Setting `from=DOCX` correctly removes DOCX from the to-row buttons. The current `to` value is allowed to remain stale (no auto-correct) — same as the prototype. If users care about that pathological case, add an effect later; not now.
+- **`opts` typed as `Record<OptionKey, boolean>`.** Three discrete toggles, no `string` index.
+
+## 12. Notes added during Compress port (Step 7 — 2026-05-03)
+
+- **First state-machine widget.** `CompressState = 'empty' \| 'uploading' \| 'done'`. The widget owns its own state — there's no externally-forced `state` prop like the prototype's "designer affordance" pill (intentionally dropped per spec; the apps/web canvas isn't a designer review surface).
+- **Three sub-components co-located:** `EmptyState`, `UploadingState`, `DoneState`. Plus `FileSummary` and `QualityRow` shared helpers. Total ~480 lines.
+- **Auto-advance through upload→process→done preserved.** `setInterval` ticks `pct` every 220ms (+6 in upload, +4 in process); a separate effect transitions phase on `pct >= 100`. `onDoneRef` pattern preserved to avoid stale-callback issues. Total ~9 seconds end-to-end. Verified live: empty click → uploading → ~10s → done → start-over → empty.
+- **Drag-and-drop preserved.** Empty state accepts `onDrop` to advance to uploading; same as prototype.
+- **`pl-pulse` className kept.** It's a small visual flourish in the prototype's CSS; if it doesn't exist in `tokens.css` it just no-ops gracefully.
 
 ## 11. Notes added during Edit port (Step 6 — 2026-05-03)
 
