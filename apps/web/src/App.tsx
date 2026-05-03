@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { Header, Footer, Icon, ToolCard, PdfThumb, LangSwitch, TOOLS, type Lang } from '@lunedoc/ui';
-import { MergeToolPage, SplitToolPage, WatermarkToolPage, SignToolPage, OCRToolPage, EditPDFToolPage, CompressToolPage } from '@lunedoc/tools';
+import { MergeToolPage, SplitToolPage, WatermarkToolPage, SignToolPage, OCRToolPage, EditPDFToolPage, CompressToolPage, ConvertToolPage } from '@lunedoc/tools';
 
 export default function App() {
   const [lang, setLang] = useState<Lang>('en');
@@ -20,6 +20,7 @@ export default function App() {
           <Route path="/ocr-pdf" element={<OCRToolPage lang={lang} />} />
           <Route path="/edit-pdf" element={<EditPDFToolPage lang={lang} />} />
           <Route path="/compress-pdf" element={<CompressToolPage lang={lang} />} />
+          <Route path="/convert-pdf" element={<ConvertToolPage lang={lang} />} />
         </Routes>
       </main>
 
@@ -137,6 +138,13 @@ function HomePage({ lang, setLang }: HomePageProps) {
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
         >
           <Icon name="compress" size={16} /> Open Compress PDF →
+        </Link>
+        <Link
+          to="/convert-pdf"
+          className="pl-btn pl-btn-ghost pl-btn-lg"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+        >
+          <Icon name="convert" size={16} /> Open Convert PDF →
         </Link>
       </div>
     </div>
