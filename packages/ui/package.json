@@ -9,6 +9,9 @@
     ".": "./src/index.ts",
     "./tokens.css": "./src/tokens.css"
   },
+  "dependencies": {
+    "@lunedoc/i18n": "workspace:*"
+  },
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

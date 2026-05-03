@@ -1,20 +1,17 @@
+import { useI18n } from '@lunedoc/i18n';
 import { ToolIcon } from './ToolIcon';
 import { TOOLS, type ToolKey } from './tools';
+import type { Lang } from '../types';
 
 interface ToolCardProps {
   toolKey: ToolKey;
-  /** Reserved for Phase 4 i18n wiring; ignored in Phase 3. */
-  lang?: string;
+  lang?: Lang;
   onClick?: () => void;
   featured?: boolean;
 }
 
-export function ToolCard(props: ToolCardProps) {
-  const { toolKey, onClick, featured } = props;
-  // Phase 3 stub. Phase 4 replaces this with the real useI18n(lang) hook
-  // from @lunedoc/i18n. Until then, labels render as their i18n keys
-  // (e.g. "t_merge") — visible signal that translations are still pending.
-  const t = (k: string) => k;
+export function ToolCard({ toolKey, lang = 'en', onClick, featured }: ToolCardProps) {
+  const { t } = useI18n(lang);
   const tool = TOOLS.find((x) => x.key === toolKey);
   if (!tool) return null;
   return (

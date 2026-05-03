@@ -1,3 +1,4 @@
+import { useI18n } from '@lunedoc/i18n';
 import { Logo } from '../logo/Logo';
 import { Icon } from '../icons/Icon';
 import type { Lang } from '../types';
@@ -12,9 +13,8 @@ interface FooterColumn {
   items: string[];
 }
 
-export function Footer({ mobile = false }: FooterProps) {
-  // Phase 3 stub — Phase 4 replaces with @lunedoc/i18n.
-  const t = (k: string) => k;
+export function Footer({ lang = 'en', mobile = false }: FooterProps) {
+  const { t } = useI18n(lang);
   const cols: FooterColumn[] = [
     { title: 'foot_product', items: ['nav_tools', 'nav_pricing', 'foot_changelog', 'foot_status'] },
     { title: 'foot_company', items: ['foot_about', 'nav_blog', 'foot_careers', 'foot_contact'] },

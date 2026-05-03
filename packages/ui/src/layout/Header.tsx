@@ -1,3 +1,4 @@
+import { useI18n } from '@lunedoc/i18n';
 import { Logo } from '../logo/Logo';
 import { Icon } from '../icons/Icon';
 import { LangSwitch } from './LangSwitch';
@@ -12,10 +13,7 @@ interface HeaderProps {
 }
 
 export function Header({ lang, setLang, mobile = false, transparent = false, active = '' }: HeaderProps) {
-  // Phase 3 stub. Phase 4 replaces with the real useI18n(lang) hook
-  // from @lunedoc/i18n. Until then, labels render as their i18n keys
-  // (e.g. "nav_tools") — the visible signal that translations are pending.
-  const t = (k: string) => k;
+  const { t } = useI18n(lang);
 
   if (mobile) {
     return (

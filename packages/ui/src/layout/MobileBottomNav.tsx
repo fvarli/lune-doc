@@ -1,3 +1,4 @@
+import { useI18n } from '@lunedoc/i18n';
 import { Icon, type IconName } from '../icons/Icon';
 import type { Lang } from '../types';
 
@@ -12,9 +13,8 @@ interface NavItem {
   labelKey: string;
 }
 
-export function MobileBottomNav({ active = 'home' }: MobileBottomNavProps) {
-  // Phase 3 stub — Phase 4 replaces with @lunedoc/i18n.
-  const t = (k: string) => k;
+export function MobileBottomNav({ active = 'home', lang = 'en' }: MobileBottomNavProps) {
+  const { t } = useI18n(lang);
   const items: NavItem[] = [
     { id: 'home', icon: 'home', labelKey: 'nav_home' },
     { id: 'tools', icon: 'grid', labelKey: 'nav_tools' },
