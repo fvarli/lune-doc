@@ -1,0 +1,76 @@
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE (JetBrains / PhpStorm)
+# =========================
+.idea/
+*.iml
+out/
+
+# VSCode (just in case)
+.vscode/
+
+# =========================
+# Logs
+# =========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# Node / Frontend (future Vite/React)
+# =========================
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+
+# =========================
+# Environment files
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Python / Backend (future FastAPI)
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.envrc
+
+# =========================
+# Uploads / Runtime files
+# =========================
+uploads/
+results/
+tmp/
+temp/
+
+# =========================
+# Design / Local state
+# =========================
+.design-canvas.state.json
+
+# =========================
+# Coverage / Testing
+# =========================
+coverage/
+.nyc_output/
+
+# =========================
+# Misc
+# =========================
+*.swp
+*.swo
