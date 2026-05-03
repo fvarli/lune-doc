@@ -266,6 +266,6 @@ For the operating procedure of a human-side run, see **`docs/manual-qa-run.md`**
 | Date | Tester | Result | Notes | Follow-up issue |
 |---|---|---|---|---|
 | YYYY-MM-DD | _name_ | pass / pass with notes / fail | _one-sentence summary_ | _link or `—`_ |
-|  |  |  |  |  |
+| 2026-05-03 | Ferzender Varli | pass | Manual browser QA completed; no blocking findings. | — |
 
 *Re-run this checklist whenever a tool page, the design system, or `tokens.css` changes.*
