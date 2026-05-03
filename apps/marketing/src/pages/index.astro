@@ -1,0 +1,45 @@
+---
+import { Logo } from '@lunedoc/ui';
+import '@lunedoc/ui/tokens.css';
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <title>Lunedoc — marketing</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-sans);
+    "
+  >
+    <main style="max-width: 720px; margin: 0 auto; padding: 4rem 1.5rem;">
+      <Logo size={20} client:load />
+      <h1
+        style="
+          font-size: 2rem;
+          font-weight: 600;
+          letter-spacing: -0.02em;
+          margin: 1.25rem 0 0.5rem;
+        "
+      >
+        Hello Lunedoc marketing
+      </h1>
+      <p style="color: var(--fg-muted); line-height: 1.55; margin: 0;">
+        <code>apps/marketing</code> is alive. Tool landing pages will be ported here in
+        Phase 7 — see <code>docs/seo-tool-page-template.md</code> and
+        <code>docs/phase-7-marketing-scaffold-plan.md</code>.
+      </p>
+      <p style="margin-top: 1rem; font-family: var(--font-mono); font-size: 0.85rem; color: var(--fg-subtle);">
+        prototype · localhost:8765 &nbsp;·&nbsp; web app · localhost:5173 &nbsp;·&nbsp; this · localhost:4321
+      </p>
+    </main>
+  </body>
+</html>
