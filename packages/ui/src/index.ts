@@ -6,3 +6,8 @@ export { ToolCard } from './tools/ToolCard';
 export { PdfThumb } from './tools/PdfThumb';
 export { TOOLS } from './tools/tools';
 export type { Tool, ToolKey, ToolCategory } from './tools/tools';
+export { LangSwitch } from './layout/LangSwitch';
+export { Header } from './layout/Header';
+export { MobileBottomNav } from './layout/MobileBottomNav';
+export { Footer } from './layout/Footer';
+export type { Lang } from './types';
