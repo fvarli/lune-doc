@@ -1,4 +1,4 @@
-import { Logo, Icon } from '@lunedoc/ui';
+import { Logo, Icon, ToolCard, PdfThumb, TOOLS } from '@lunedoc/ui';
 
 export default function App() {
   return (
@@ -24,6 +24,7 @@ export default function App() {
         </a>
         . Phase 3 in progress; UI primitives are flowing in from <code>@lunedoc/ui</code>.
       </p>
+
       <div
         style={{
           display: 'inline-flex',
@@ -39,6 +40,11 @@ export default function App() {
         <Icon name="merge" />
         <Icon name="sign" />
         <Icon name="ocr" />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginTop: '1.5rem', maxWidth: 360 }}>
+        <ToolCard toolKey={TOOLS[0].key} />
+        <PdfThumb />
       </div>
     </main>
   );
