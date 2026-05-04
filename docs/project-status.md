@@ -18,7 +18,7 @@ State of the prototype:
 - **i18n live in EN / TR / ES** for every tool surface; switching locale via the Tweaks panel re-renders all artboards.
 - **Prototype is the design source of truth** and remains served from `python3 -m http.server 8765`. It was not modified during the migration and won't be until the Phase 8 cutover (move into `prototype/design-canvas/`).
 - **Frontend migration**: ✓ DONE through Phase 7 on `main`. `apps/web` (Vite + React 19 + TS) at port 5173 serves all 8 tool routes. `apps/marketing` (Astro 6 + React islands + TS) builds 25 static HTML files (8 tools × 3 locales + home) for the public SEO surface. See §8 R3 for commit ranges.
-- **Backend**: Phase 0 in progress on `main`. `services/api/` (FastAPI + async SQLAlchemy + asyncpg + Celery + Redis + LocalDiskStorage) ships the anonymous file lifecycle (POST/GET/DELETE/download under `/api/v1/files`), `/api/v1/healthz`, owner-token HMAC auth, MIME whitelist (415), 50 MB cap (413), and a 60 s TTL sweeper. Tool endpoints (`/api/v1/jobs/*`) and auth/me surfaces are stubbed at 501 — Phase 1 + Phase 4 work. See `docs/backend-api-plan.md` and `services/api/README.md`. Postgres + Redis run as host services; **no Docker**.
+- **Backend**: Phase 0 done; **Phase 1 in progress** (Merge live, Split next). `services/api/` (FastAPI + async SQLAlchemy + asyncpg + Celery + Redis + LocalDiskStorage + PyMuPDF) ships the anonymous file lifecycle (POST/GET/DELETE/download under `/api/v1/files`), `/api/v1/healthz`, owner-token HMAC auth, MIME whitelist (415), 50 MB cap (413), 60 s TTL sweeper, and a `Job` model with status/result endpoints (`POST /api/v1/jobs/merge`, `GET /api/v1/jobs/{id}`, `GET /api/v1/jobs/{id}/result`). Other tool endpoints still stubbed at 501. See `docs/backend-api-plan.md` and `services/api/README.md`. Postgres + Redis run as host services; **no Docker**.
 
 ---
 
@@ -199,8 +199,8 @@ All work merged to `main`; the working `phase-2/scaffold` branch was deleted aft
 
 ### R4 — Backend MVP implementation
 Per `docs/backend-api-plan.md` §8 — 7-week plan, anonymous tools first, auth and dashboard last. Concretely:
-- **Phase 0: API skeleton + storage + sweeper. — IN PROGRESS** (2026-05-04). `services/api/` lives on `main`. Files lifecycle endpoints, `/healthz`, owner-token HMAC, MIME 415, size 413, TTL sweeper, 7/7 pytest green against `lunedoc_test`. See commits `dfe86b5` (scaffold) + `910b284` (files + sweeper + tests). Stubs at 501 for `/jobs/*`, `/auth/*`, `/me/*`.
-- Phase 1: Merge / Split / Watermark / Sign / Edit (5 of 8 tools).
+- **Phase 0: API skeleton + storage + sweeper. — ✓ DONE** (2026-05-04). Lives on `main`. Files lifecycle endpoints, `/healthz`, owner-token HMAC, MIME 415, size 413, TTL sweeper, 7/7 pytest green against `lunedoc_test`. Commits: `dfe86b5` (scaffold) + `910b284` (files + sweeper + tests) + `d6191af` (docs).
+- **Phase 1: Merge / Split / Watermark / Sign / Edit — IN PROGRESS** (Merge live as of 2026-05-04). Job model + `jobs` table (Alembic 0002) live; PyMuPDF as the engine; Celery `lunedoc.merge` task with `queued → running → done|failed` lifecycle; route surface `POST /api/v1/jobs/merge`, `GET /api/v1/jobs/{id}`, `GET /api/v1/jobs/{id}/result` enforcing the same X-Owner-Token no-leak policy as files. Output flows back as a regular `File` row inheriting the job's owner_token_hash, downloadable via the existing `/api/v1/files/{id}/download`. 14/14 pytest green. Tools remaining in this phase: Split, Watermark, Sign, Edit.
 - Phase 2: Compress + Convert.
 - Phase 3: OCR.
 - Phase 4: Auth + dashboard + quotas.
