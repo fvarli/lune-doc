@@ -1,6 +1,6 @@
 # Lunedoc — Project Status & Roadmap
 
-**Snapshot date:** 2026-05-04
+**Snapshot date:** 2026-05-05
 
 This is the single orientation document for the project. New contributors (and new chat sessions) should read this first.
 
@@ -17,8 +17,8 @@ State of the prototype:
 - **8 PDF tools mocked end-to-end** (Compress, Merge, Split, Convert, Watermark, Sign, OCR, Edit) — see §5.
 - **i18n live in EN / TR / ES** for every tool surface; switching locale via the Tweaks panel re-renders all artboards.
 - **Prototype is the design source of truth** and remains served from `python3 -m http.server 8765`. It was not modified during the migration and won't be until the Phase 8 cutover (move into `prototype/design-canvas/`).
-- **Frontend migration**: ✓ DONE through Phase 7 on `main`. `apps/web` (Vite + React 19 + TS) at port 5173 serves all 8 tool routes. `apps/marketing` (Astro 6 + React islands + TS) builds 25 static HTML files (8 tools × 3 locales + home) for the public SEO surface. See §8 R3 for commit ranges.
-- **Backend**: Phase 0 done; **Phase 1 in progress** — Merge + Split live, Watermark next. `services/api/` (FastAPI + async SQLAlchemy + asyncpg + Celery + Redis + LocalDiskStorage + PyMuPDF) ships the anonymous file lifecycle (POST/GET/DELETE/download under `/api/v1/files`), `/api/v1/healthz`, owner-token HMAC auth, MIME whitelist (415), 50 MB cap (413), 60 s TTL sweeper, and a `Job` model (with `params` JSONB) backing `POST /api/v1/jobs/{merge,split}`, `GET /api/v1/jobs/{id}`, `GET /api/v1/jobs/{id}/result` (multi-output aware). Other tool endpoints still stubbed at 501. See `docs/backend-api-plan.md` and `services/api/README.md`. Postgres + Redis run as host services; **no Docker**.
+- **Frontend migration**: ✓ DONE through Phase 7 on `main`. `apps/web` (Vite + React 19 + TS) at port 5173 serves all 8 tool routes. `apps/marketing` (Astro 6 + React islands + TS) builds 25 static HTML files (8 tools × 3 locales + home) for the public SEO surface. **Merge + Split are now wired to the real backend** via the new `@lunedoc/api` workspace package; the remaining 6 tools still run client-side mocks. See §8 R3 for commit ranges.
+- **Backend**: Phase 0 done; **Phase 1 in progress** — Merge + Split live both server-side and frontend-wired, Watermark next. `services/api/` (FastAPI + async SQLAlchemy + asyncpg + Celery + Redis + LocalDiskStorage + PyMuPDF) ships the anonymous file lifecycle (POST/GET/DELETE/download under `/api/v1/files`, with optional `X-Owner-Token` to extend ownership across multiple uploads), `/api/v1/healthz`, owner-token HMAC auth, MIME whitelist (415), 50 MB cap (413), 60 s TTL sweeper, and a `Job` model (with `params` JSONB) backing `POST /api/v1/jobs/{merge,split}`, `GET /api/v1/jobs/{id}`, `GET /api/v1/jobs/{id}/result` (multi-output aware). Other tool endpoints still stubbed at 501. See `docs/backend-api-plan.md` and `services/api/README.md`. Postgres + Redis run as host services; **no Docker**.
 
 ---
 
@@ -38,9 +38,10 @@ lune-doc/                               ← pnpm workspace
 │   └── marketing/                       ← Astro 6 + React islands + TS · port 4321
 │       └── src/{layouts/, pages/, data/, components/, seo/}
 ├── packages/
-│   ├── ui/                              ← @lunedoc/ui · tokens.css + Logo/Icon/Header/Footer/ToolCard/PdfThumb/LangSwitch + Lang type
-│   ├── i18n/                            ← @lunedoc/i18n · 336-key EN/TR/ES JSON tables + useI18n hook
-│   └── tools/                           ← @lunedoc/tools · 8 ported tool widgets (Merge/Split/Watermark/Sign/OCR/Edit/Compress/Convert)
+│   ├── ui/                              ← @lunedoc/ui · tokens.css + Logo/Icon/Header/Footer/ToolCard/PdfThumb/LangSwitch/DropZone + Lang type
+│   ├── i18n/                            ← @lunedoc/i18n · 346-key EN/TR/ES JSON tables + useI18n hook
+│   ├── api/                             ← @lunedoc/api · typed HTTP client (LunedocClient + DTOs + typed errors + localStorage owner_token store) — consumed by apps/web AND apps/marketing
+│   └── tools/                           ← @lunedoc/tools · 8 ported tool widgets (Merge + Split wired to @lunedoc/api; Watermark/Sign/OCR/Edit/Compress/Convert still client-side mocks)
 ├── services/
 │   └── api/                             ← lunedoc-api · FastAPI + Postgres (asyncpg) + Celery/Redis · uv-managed · port 8000
 │       └── src/lunedoc_api/{main,settings,db,storage,owner_token,mime,routes/,workers/,models/}
@@ -200,7 +201,7 @@ All work merged to `main`; the working `phase-2/scaffold` branch was deleted aft
 ### R4 — Backend MVP implementation
 Per `docs/backend-api-plan.md` §8 — 7-week plan, anonymous tools first, auth and dashboard last. Concretely:
 - **Phase 0: API skeleton + storage + sweeper. — ✓ DONE** (2026-05-04). Lives on `main`. Files lifecycle endpoints, `/healthz`, owner-token HMAC, MIME 415, size 413, TTL sweeper, 7/7 pytest green against `lunedoc_test`. Commits: `dfe86b5` (scaffold) + `910b284` (files + sweeper + tests) + `d6191af` (docs).
-- **Phase 1: Merge / Split / Watermark / Sign / Edit — IN PROGRESS** (Merge + Split live as of 2026-05-04). Job model + `jobs` table (Alembic 0002 + 0003 added a `params` JSONB column for per-tool config); PyMuPDF as the engine; Celery `lunedoc.merge` and `lunedoc.split` tasks share the `queued → running → done|failed` lifecycle. Route surface: `POST /api/v1/jobs/merge`, `POST /api/v1/jobs/split` (mode=`ranges` with 1-indexed inclusive `[start,end]` lists, or mode=`per_page`), shared `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/result` (multi-output aware). Outputs are normal `File` rows inheriting the job's owner_token_hash, downloadable via `/api/v1/files/{id}/download`. Same X-Owner-Token no-leak policy as files. 23/23 pytest green. Tools remaining in this phase: Watermark, Sign, Edit.
+- **Phase 1: Merge / Split / Watermark / Sign / Edit — IN PROGRESS** (Merge + Split server-side **and** frontend-wired as of 2026-05-05). Job model + `jobs` table (Alembic 0002 + 0003 added a `params` JSONB column for per-tool config); PyMuPDF as the engine; Celery `lunedoc.merge` and `lunedoc.split` tasks share the `queued → running → done|failed` lifecycle. Route surface: `POST /api/v1/jobs/merge`, `POST /api/v1/jobs/split` (mode=`ranges` with 1-indexed inclusive `[start,end]` lists, or mode=`per_page`), shared `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/result` (multi-output aware). Outputs are normal `File` rows inheriting the job's owner_token_hash, downloadable via `/api/v1/files/{id}/download`. Same X-Owner-Token no-leak policy as files. **`POST /api/v1/files` now accepts an optional `X-Owner-Token` header to extend ownership across multiple uploads — needed for multi-input flows like Merge.** 25/25 pytest green. Frontend client (`@lunedoc/api`) covers the full upload → job → poll → result → download lifecycle and is consumed by both `apps/web` and `apps/marketing`'s React islands. Tools remaining in this phase: Watermark, Sign, Edit.
 - Phase 2: Compress + Convert.
 - Phase 3: OCR.
 - Phase 4: Auth + dashboard + quotas.
