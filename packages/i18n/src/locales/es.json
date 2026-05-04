@@ -334,5 +334,15 @@
   "pricing_cmp3_t": "Funciona en todas partes",
   "pricing_cmp3_b": "Hoy en navegador; apps iOS y Android este año. Autoalojado disponible.",
   "pricing_cmp4_t": "Sin límites sorpresa",
-  "pricing_cmp4_b": "Lo que ves es el precio. Sin exportaciones medidas, sin extras, sin niveles ocultos."
+  "pricing_cmp4_b": "Lo que ves es el precio. Sin exportaciones medidas, sin extras, sin niveles ocultos.",
+  "error_upload_too_large": "El archivo es demasiado grande. Tamaño máximo 50 MB.",
+  "error_upload_unsupported": "Ese tipo de archivo no está soportado aquí.",
+  "error_network": "Problema de red. Comprueba tu conexión e inténtalo de nuevo.",
+  "error_backend_unreachable": "No podemos contactar con el servicio de Lunedoc ahora mismo. Inténtalo de nuevo en un momento.",
+  "error_session_expired": "Tu sesión ha caducado. Sube los archivos de nuevo para continuar.",
+  "error_file_expired": "Tu archivo ha caducado (límite de 1 hora). Vuelve a subirlo.",
+  "error_job_failed": "El procesamiento ha fallado. Inténtalo de nuevo o usa otro archivo.",
+  "error_result_expired": "El resultado ha caducado. Vuelve a ejecutar la herramienta.",
+  "error_job_timeout": "El procesamiento está tardando más de lo esperado. Puedes intentarlo de nuevo.",
+  "error_invalid_ranges": "Los rangos de página no son válidos. Usa números desde 1 dentro del documento."
 }

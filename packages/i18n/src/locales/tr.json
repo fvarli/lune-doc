@@ -334,5 +334,15 @@
   "pricing_cmp3_t": "Her yerde çalışır",
   "pricing_cmp3_b": "Bugün tarayıcı tabanlı; iOS ve Android uygulamaları bu yıl. Kendi sunucunuzda da kullanılabilir.",
   "pricing_cmp4_t": "Sürpriz sınır yok",
-  "pricing_cmp4_b": "Gördüğünüz fiyat son fiyattır. Sayaçlı dışa aktarım, eklenti veya gizli kademe yok."
+  "pricing_cmp4_b": "Gördüğünüz fiyat son fiyattır. Sayaçlı dışa aktarım, eklenti veya gizli kademe yok.",
+  "error_upload_too_large": "Dosya çok büyük. Üst sınır 50 MB.",
+  "error_upload_unsupported": "Bu dosya türü desteklenmiyor.",
+  "error_network": "Ağ sorunu. Bağlantınızı kontrol edip tekrar deneyin.",
+  "error_backend_unreachable": "Lunedoc servisine şu an ulaşılamıyor. Birazdan tekrar deneyin.",
+  "error_session_expired": "Oturumunuz sona erdi. Devam etmek için yeniden yükleyin.",
+  "error_file_expired": "Dosyanızın süresi doldu (1 saatlik sınır). Lütfen tekrar yükleyin.",
+  "error_job_failed": "İşlem başarısız oldu. Tekrar deneyin veya farklı bir dosya kullanın.",
+  "error_result_expired": "Sonuç süresi doldu. Lütfen aracı tekrar çalıştırın.",
+  "error_job_timeout": "İşlem beklenenden uzun sürüyor. Tekrar deneyebilirsiniz.",
+  "error_invalid_ranges": "Sayfa aralıkları geçersiz. 1'den başlayan, belge içinde kalan sayılar kullanın."
 }

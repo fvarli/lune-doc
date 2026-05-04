@@ -334,5 +334,15 @@
   "pricing_cmp3_t": "Works everywhere",
   "pricing_cmp3_b": "Browser-based today; iOS and Android apps later this year. Self-hosted available.",
   "pricing_cmp4_t": "No surprise limits",
-  "pricing_cmp4_b": "What you see is the price. No metered exports, no add-ons, no hidden tiers."
+  "pricing_cmp4_b": "What you see is the price. No metered exports, no add-ons, no hidden tiers.",
+  "error_upload_too_large": "File is too large. Maximum size is 50 MB.",
+  "error_upload_unsupported": "That file type isn't supported here.",
+  "error_network": "Network problem. Check your connection and try again.",
+  "error_backend_unreachable": "Can't reach the Lunedoc service right now. Try again in a moment.",
+  "error_session_expired": "Your session has expired. Please re-upload to continue.",
+  "error_file_expired": "Your file has expired (1-hour limit). Please re-upload.",
+  "error_job_failed": "Processing failed. Please try again or use a different file.",
+  "error_result_expired": "The result has expired. Please run the tool again.",
+  "error_job_timeout": "Processing is taking longer than expected. You can try again.",
+  "error_invalid_ranges": "Page ranges are invalid. Use 1-indexed numbers within the document."
 }
