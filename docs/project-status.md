@@ -1,6 +1,6 @@
 # Lunedoc — Project Status & Roadmap
 
-**Snapshot date:** 2026-05-05
+**Snapshot date:** 2026-05-05 (frontend consolidation)
 
 This is the single orientation document for the project. New contributors (and new chat sessions) should read this first.
 
@@ -17,7 +17,7 @@ State of the prototype:
 - **8 PDF tools mocked end-to-end** (Compress, Merge, Split, Convert, Watermark, Sign, OCR, Edit) — see §5.
 - **i18n live in EN / TR / ES** for every tool surface; switching locale via the Tweaks panel re-renders all artboards.
 - **Prototype is the design source of truth** and remains served from `python3 -m http.server 8765`. It was not modified during the migration and won't be until the Phase 8 cutover (move into `prototype/design-canvas/`).
-- **Frontend migration**: ✓ DONE through Phase 7 on `main`. `apps/web` (Vite + React 19 + TS) at port 5173 serves all 8 tool routes. `apps/marketing` (Astro 6 + React islands + TS) builds 25 static HTML files (8 tools × 3 locales + home) for the public SEO surface. **Merge + Split are now wired to the real backend** via the new `@lunedoc/api` workspace package; the remaining 6 tools still run client-side mocks. See §8 R3 for commit ranges.
+- **Frontend migration**: ✓ DONE through Phase 7 on `main`, then **consolidated** — `apps/web` (Vite + React 19 + TS, port 5173) is now the **only** frontend app. `apps/marketing` was deleted on 2026-05-05 (D10 follow-through). The 25 SEO landing routes (1 home + 8 tools × 3 locales + 2 localized homes = 27 generated) now ship from `apps/web` via a small `tsx scripts/prerender.ts` post-build step that writes per-route static HTML with correct `<title>`, `<meta>`, canonical, hreflang × 4, and 4 JSON-LD blocks (SoftwareApplication / FAQPage / HowTo / BreadcrumbList) — same SEO surface as the old Astro output. The body remains SPA-rendered after hydration; Google sees full content, JS-disabled crawlers see static head metadata. **Merge + Split are wired to the real backend** via `@lunedoc/api`; the remaining 6 tools still run client-side mocks. See §8 R3 for commit ranges.
 - **Backend**: Phase 0 done; **Phase 1 in progress** — Merge + Split live both server-side and frontend-wired, Watermark next. `services/api/` (FastAPI + async SQLAlchemy + asyncpg + Celery + Redis + LocalDiskStorage + PyMuPDF) ships the anonymous file lifecycle (POST/GET/DELETE/download under `/api/v1/files`, with optional `X-Owner-Token` to extend ownership across multiple uploads), `/api/v1/healthz`, owner-token HMAC auth, MIME whitelist (415), 50 MB cap (413), 60 s TTL sweeper, and a `Job` model (with `params` JSONB) backing `POST /api/v1/jobs/{merge,split}`, `GET /api/v1/jobs/{id}`, `GET /api/v1/jobs/{id}/result` (multi-output aware). Other tool endpoints still stubbed at 501. See `docs/backend-api-plan.md` and `services/api/README.md`. Postgres + Redis run as host services; **no Docker**.
 
 ---
@@ -33,14 +33,13 @@ lune-doc/                               ← pnpm workspace
 ├── index.html                           ← prototype entrypoint (untouched)
 ├── .design-canvas.state.json            ← prototype sidecar (untouched)
 ├── apps/
-│   ├── web/                             ← Vite + React 19 + TS · port 5173 · 8 tool routes
-│   │   └── src/{App.tsx, main.tsx, …}
-│   └── marketing/                       ← Astro 6 + React islands + TS · port 4321
-│       └── src/{layouts/, pages/, data/, components/, seo/}
+│   └── web/                             ← Vite + React 19 + TS · port 5173 · ONLY frontend app
+│       ├── src/{App.tsx, main.tsx, landing/, data/, seo/}
+│       └── scripts/prerender.ts          ← post-build SEO prerender (27 routes)
 ├── packages/
 │   ├── ui/                              ← @lunedoc/ui · tokens.css + Logo/Icon/Header/Footer/ToolCard/PdfThumb/LangSwitch/DropZone + Lang type
 │   ├── i18n/                            ← @lunedoc/i18n · 346-key EN/TR/ES JSON tables + useI18n hook
-│   ├── api/                             ← @lunedoc/api · typed HTTP client (LunedocClient + DTOs + typed errors + localStorage owner_token store) — consumed by apps/web AND apps/marketing
+│   ├── api/                             ← @lunedoc/api · typed HTTP client (LunedocClient + DTOs + typed errors + localStorage owner_token store) — consumed by apps/web
 │   └── tools/                           ← @lunedoc/tools · 8 ported tool widgets (Merge + Split wired to @lunedoc/api; Watermark/Sign/OCR/Edit/Compress/Convert still client-side mocks)
 ├── services/
 │   └── api/                             ← lunedoc-api · FastAPI + Postgres (asyncpg) + Celery/Redis · uv-managed · port 8000
@@ -108,13 +107,12 @@ Local dev: `python3 -m http.server 8765` from project root → open `http://loca
 
 ## 5. Tool surfaces (3 places per tool)
 
-Each of the 8 MVP tools now exists in **three places**, all driven by client-side mocks (no real PDF processing yet):
+Each of the 8 MVP tools now exists in **two places**:
 
 1. **Prototype** — design source artboards in `docs/components/tool-page.jsx` and `docs/components/tool-variants.jsx`. Same shell aesthetic across all 8.
-2. **`apps/web` route** — typed React component in `packages/tools/src/<tool>/<Tool>ToolPage.tsx`, served at `/<tool>-pdf` on port 5173.
-3. **`apps/marketing` landing page** — Astro static page at `/<tool>-pdf` (and `/tr/<tool>-pdf`, `/es/<tool>-pdf`) hydrating the same `@lunedoc/tools` widget as a React island.
+2. **`apps/web`** — typed React component in `packages/tools/src/<tool>/<Tool>ToolPage.tsx`, served at `/<tool>-pdf` on port 5173 (and `/tr/<tool>-pdf`, `/es/<tool>-pdf` for localized SEO landing pages with the same widget). Production build emits per-route static HTML for SEO via `scripts/prerender.ts`.
 
-The table below describes the **prototype** version (the design spec). The widget rows are 1:1 with the ported components in `packages/tools/`.
+(Previously a third place — the separate `apps/marketing` Astro app — existed for the SEO surface; it was consolidated into `apps/web` on 2026-05-05 per D10.) The table below describes the **prototype** version (the design spec). The widget rows are 1:1 with the ported components in `packages/tools/`.
 
 | Tool | Component | File | Desktop / Mobile artboard | Notes |
 |---|---|---|---|---|
@@ -153,7 +151,7 @@ The table below describes the **prototype** version (the design spec). The widge
 | D7 | **Files are ephemeral**: 1-hour TTL after upload or job completion (later wins). No backups. | confirmed | Drives privacy story and storage sizing. |
 | D8 | **Anonymous-first** flow. Auth and dashboard ship after the tool pipeline is live. | confirmed | Eight tools work without a user account in MVP. |
 | D9 | **Edit PDF is intentionally an overlay/redact editor**, not Acrobat-style content editing. | confirmed | Set UI/marketing copy expectations accordingly. |
-| D10 | **Frontend consolidates to a single app long-term.** `apps/marketing` will be merged into `apps/web` in a separate later task; the split was a Phase 7 scaffolding choice, not the end state. `apps/marketing` remains in-tree until that consolidation lands. | 2026-05-04 | Captured to anchor the next frontend workstream once backend Phase 1 is underway. |
+| D10 | **Frontend consolidates to a single app.** ✓ DONE 2026-05-05. `apps/marketing` removed; `apps/web` is the only frontend app. SEO landing pages re-implemented as React Router routes inside `apps/web`, with a `tsx scripts/prerender.ts` post-build step that writes per-route static HTML. | 2026-05-04 (decided), 2026-05-05 (executed) | Frontend stack is now Vite + React Router + post-build prerender. |
 | D11 | **Backend runs on host services, not Docker.** Postgres + Redis must be installed as Xubuntu/Linux daemons; the repo intentionally has no `Dockerfile` or `docker-compose.yml`. `uv` (Astral) is the Python package manager. | 2026-05-04 | Setup commands documented in `services/api/README.md`. Revisit only if multi-host deploy actually demands it. |
 
 ---
@@ -194,27 +192,26 @@ All work merged to `main`; the working `phase-2/scaffold` branch was deleted aft
   - **Routes live:** `/merge-pdf`, `/split-pdf`, `/watermark-pdf`, `/sign-pdf`, `/ocr-pdf`, `/edit-pdf`, `/compress-pdf`, `/convert-pdf`.
   - **Inside `@lunedoc/tools`:** `MergeToolPage`, `SplitToolPage`, `WatermarkToolPage`, `SignToolPage`, `OCRToolPage`, `EditPDFToolPage`, `CompressToolPage`, `ConvertToolPage`. Shared internal helper at `packages/tools/src/_internal/btnGhost.ts`.
   - The prototype remains untouched — `index.html` + `docs/components/*.jsx` are exactly as they were before Phase 2. Phase 8 (cutover) will eventually move the prototype into `prototype/design-canvas/` per the original migration plan; not now.
-- **Phase 7 (`apps/marketing` Astro site for SEO tool landing pages)** — ✓ DONE 2026-05-03. Commit range `749e685..e302623`. **All 8 tool pages live in EN/TR/ES** at `/<tool>-pdf`, `/tr/<tool>-pdf`, `/es/<tool>-pdf` for `merge`, `split`, `watermark`, `sign`, `ocr`, `edit`, `compress`, `convert`. **25 static HTML files** in `apps/marketing/dist/` (8 tools × 3 locales + home placeholder). Each page emits canonical + 4 hreflang + 4 JSON-LD blocks (SoftwareApplication / FAQPage / HowTo / BreadcrumbList), per-locale `<title>` + `<html lang>`, hydrates the tool widget as a `client:load` React island, and renders related-tools tile grid + FAQ accordions + Footer. Zero raw i18n keys in any rendered HTML. Honesty clauses baked in for Sign (visible-not-cryptographic), Edit (overlay-not-reflow), Compress (size-depends-on-original), Convert (PDF→Word lossy + formulas don't survive PDF→Excel), Split (full-pages-not-partial-text). See `docs/phase-7-marketing-scaffold-plan.md`.
-- **Next workstream — backend MVP** per `docs/backend-api-plan.md`. When the API endpoints land, both `apps/web` and `apps/marketing` widgets flip from client-side mocks to real API clients in a single diff — closing the prototype-to-product migration story end-to-end. Estimated 7 weeks per the plan.
+- **Phase 7 (Astro `apps/marketing` SEO tool landing pages)** — ✓ DONE 2026-05-03 (commit range `749e685..e302623`). **Superseded 2026-05-05** by frontend consolidation (R6 below): `apps/marketing` was deleted and the 25 SEO landing routes were re-implemented inside `apps/web`. The honesty-clause copy, FAQ tables, HowTo steps, and JSON-LD schema helpers were preserved verbatim — just moved from Astro to React. See `docs/phase-7-marketing-scaffold-plan.md` for the original Phase 7 history.
+- **Next workstream — backend MVP** per `docs/backend-api-plan.md`. When the API endpoints land, the `apps/web` tool widgets flip from client-side mocks to real API clients — closing the prototype-to-product migration story end-to-end. Estimated 7 weeks per the plan.
 - **Optional small side task — extract `I18N_ARTICLES`** from the prototype's `docs/components/i18n.jsx` into `@lunedoc/i18n` (~30 minutes). Closes the Phase 4 open thread; not blocking anything.
 
 ### R4 — Backend MVP implementation
 Per `docs/backend-api-plan.md` §8 — 7-week plan, anonymous tools first, auth and dashboard last. Concretely:
 - **Phase 0: API skeleton + storage + sweeper. — ✓ DONE** (2026-05-04). Lives on `main`. Files lifecycle endpoints, `/healthz`, owner-token HMAC, MIME 415, size 413, TTL sweeper, 7/7 pytest green against `lunedoc_test`. Commits: `dfe86b5` (scaffold) + `910b284` (files + sweeper + tests) + `d6191af` (docs).
-- **Phase 1: Merge / Split / Watermark / Sign / Edit — IN PROGRESS** (Merge + Split server-side **and** frontend-wired as of 2026-05-05). Job model + `jobs` table (Alembic 0002 + 0003 added a `params` JSONB column for per-tool config); PyMuPDF as the engine; Celery `lunedoc.merge` and `lunedoc.split` tasks share the `queued → running → done|failed` lifecycle. Route surface: `POST /api/v1/jobs/merge`, `POST /api/v1/jobs/split` (mode=`ranges` with 1-indexed inclusive `[start,end]` lists, or mode=`per_page`), shared `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/result` (multi-output aware). Outputs are normal `File` rows inheriting the job's owner_token_hash, downloadable via `/api/v1/files/{id}/download`. Same X-Owner-Token no-leak policy as files. **`POST /api/v1/files` now accepts an optional `X-Owner-Token` header to extend ownership across multiple uploads — needed for multi-input flows like Merge.** 25/25 pytest green. Frontend client (`@lunedoc/api`) covers the full upload → job → poll → result → download lifecycle and is consumed by both `apps/web` and `apps/marketing`'s React islands. Tools remaining in this phase: Watermark, Sign, Edit.
+- **Phase 1: Merge / Split / Watermark / Sign / Edit — IN PROGRESS** (Merge + Split server-side **and** frontend-wired as of 2026-05-05). Job model + `jobs` table (Alembic 0002 + 0003 added a `params` JSONB column for per-tool config); PyMuPDF as the engine; Celery `lunedoc.merge` and `lunedoc.split` tasks share the `queued → running → done|failed` lifecycle. Route surface: `POST /api/v1/jobs/merge`, `POST /api/v1/jobs/split` (mode=`ranges` with 1-indexed inclusive `[start,end]` lists, or mode=`per_page`), shared `GET /api/v1/jobs/{id}` and `GET /api/v1/jobs/{id}/result` (multi-output aware). Outputs are normal `File` rows inheriting the job's owner_token_hash, downloadable via `/api/v1/files/{id}/download`. Same X-Owner-Token no-leak policy as files. **`POST /api/v1/files` now accepts an optional `X-Owner-Token` header to extend ownership across multiple uploads — needed for multi-input flows like Merge.** 25/25 pytest green. Frontend client (`@lunedoc/api`) covers the full upload → job → poll → result → download lifecycle and is consumed by `apps/web`. Tools remaining in this phase: Watermark, Sign, Edit.
 - Phase 2: Compress + Convert.
 - Phase 3: OCR.
 - Phase 4: Auth + dashboard + quotas.
 - Phase 5: R2, ClamAV, signed URLs, ops UI.
 
-### R6 — Frontend consolidation: merge `apps/marketing` into `apps/web`
-Per D10 (above). Separate task; not bundled into R4. The marketing-vs-web split was useful as a Phase 7 stepping stone but is not the long-term shape. Outline:
-- Move Astro pages + per-locale routes into `apps/web` (likely as a sub-route tree or a hybrid SSR/SSG setup, exact framework TBD).
-- Collapse the duplicated `<Header>`/`<Footer>`/`<LangSwitch>` mounts into a single tree.
-- Retire `apps/marketing/` and update `pnpm-workspace.yaml` + root scripts.
-- Verify SEO surfaces (canonical, hreflang, JSON-LD) survive the move with no regression.
-
-Timing: most natural after backend Phase 1 ships at least Merge + Split end-to-end (so the consolidation refactor doesn't conflict with widget API rewiring).
+### R6 — Frontend consolidation: merge `apps/marketing` into `apps/web` — ✓ DONE 2026-05-05
+Per D10. Replaced Astro with React Router routes inside `apps/web` + a small `tsx scripts/prerender.ts` post-build step that writes per-route static HTML for SEO. Result:
+- 27 routes generated (1 EN home + 2 localized homes + 8 tools × 3 locales = 27; the 25 required by the original Phase 7 spec are a subset).
+- Each generated `dist/<route>/index.html` carries the correct `<title>`, `<meta name="description">`, `<link rel="canonical">`, hreflang × 4, and 4 JSON-LD blocks (SoftwareApplication / FAQPage / HowTo / BreadcrumbList). `<html lang="...">` matches the locale.
+- `apps/marketing` was deleted entirely; root `package.json` no longer has `marketing:*` scripts.
+- The body is SPA-rendered after hydration. Static head is the SEO surface; static body is not generated. **Honest limitation:** non-JS crawlers see only the head metadata, not the body content. Modern Google/Bing execute JS and see the full page. Trade-off documented; revisit only if non-JS crawler indexing matters.
+- Honesty clauses (Sign visible-not-cryptographic, Edit overlay-not-reflow, etc.) preserved verbatim in `apps/web/src/data/`.
 
 ### R5 — Flutter-ready API confirmation
 Sized inside R4, no separate workstream:

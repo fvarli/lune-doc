@@ -1,6 +1,6 @@
 # Lunedoc — Phase 7: `apps/marketing` Scaffold Plan
 
-**Status:** ✓ DONE (2026-05-03) — **all 8 tool pages live in EN/TR/ES**. Commit range: `749e685..e302623` (merged to `main`; the working branch was deleted post-merge). 25 static HTML files in `apps/marketing/dist/` (8 tools × 3 locales + home placeholder). Per-page output: canonical + 4 hreflang + 4 JSON-LD blocks + tool-widget React island + per-locale `<title>`/`<html lang>` + zero raw i18n keys.
+**Status:** ✓ DONE (2026-05-03), then **SUPERSEDED 2026-05-05**. The Astro `apps/marketing` app described below was deleted as part of the frontend consolidation (`docs/project-status.md` §8 R6, decision D10). The 25 SEO landing routes were re-implemented inside `apps/web` as React Router routes, with a `tsx scripts/prerender.ts` post-build step that writes the same per-route static HTML (title, meta, canonical, hreflang × 4, 4 JSON-LD blocks). Honesty-clause copy and per-locale FAQ/HowTo data tables were preserved verbatim. **This document is kept for historical context only — anything below referring to `apps/marketing/` no longer reflects the live tree.**
 
 **Companion docs:**
 - `docs/seo-tool-page-template.md` — the production template each `/<tool>-pdf` page must implement.
