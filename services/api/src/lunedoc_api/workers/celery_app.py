@@ -5,8 +5,13 @@ Run a worker with:
 
 Run beat (single instance) with:
   celery -A lunedoc_api.workers.celery_app beat --loglevel=info
+
+Tests set `CELERY_TASK_ALWAYS_EAGER=1` so `task.delay(...)` runs the
+task synchronously in-process, no broker required.
 """
 from __future__ import annotations
+
+import os
 
 from celery import Celery
 
@@ -16,7 +21,10 @@ celery_app = Celery(
     "lunedoc",
     broker=get_settings().REDIS_URL,
     backend=get_settings().REDIS_URL,
-    include=["lunedoc_api.workers.sweeper"],
+    include=[
+        "lunedoc_api.workers.sweeper",
+        "lunedoc_api.workers.tasks.merge",
+    ],
 )
 
 celery_app.conf.update(
@@ -33,3 +41,7 @@ celery_app.conf.update(
         },
     },
 )
+
+if os.environ.get("CELERY_TASK_ALWAYS_EAGER") == "1":
+    celery_app.conf.task_always_eager = True
+    celery_app.conf.task_eager_propagates = True

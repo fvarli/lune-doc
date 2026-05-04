@@ -33,6 +33,8 @@ os.environ["DATABASE_URL_SYNC"] = os.environ.get(
 os.environ.setdefault("OWNER_TOKEN_PEPPER", "test-pepper-not-secret")
 os.environ.setdefault("STORAGE_ROOT", str(Path(__file__).parent / ".test-storage"))
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")  # use db 15 for tests
+# Run Celery tasks synchronously in-process during tests — no broker, no worker.
+os.environ["CELERY_TASK_ALWAYS_EAGER"] = "1"
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
@@ -44,18 +46,22 @@ async def _prepare_db():
 
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE TABLE files RESTART IDENTITY CASCADE"))
+        await conn.execute(
+            text("TRUNCATE TABLE jobs, files RESTART IDENTITY CASCADE")
+        )
     yield
 
 
 @pytest_asyncio.fixture
 async def db() -> AsyncIterator[AsyncSession]:
-    """Per-test DB session. Truncates `files` before yielding."""
+    """Per-test DB session. Truncates jobs + files before yielding."""
     from lunedoc_api.db import get_engine, get_session_factory
 
     engine = get_engine()
     async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE TABLE files RESTART IDENTITY CASCADE"))
+        await conn.execute(
+            text("TRUNCATE TABLE jobs, files RESTART IDENTITY CASCADE")
+        )
 
     factory = get_session_factory()
     async with factory() as session:
