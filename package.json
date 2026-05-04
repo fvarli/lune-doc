@@ -11,8 +11,6 @@
     "web:build": "pnpm --filter @lunedoc/web build",
     "web:test": "pnpm --filter @lunedoc/web test --run",
     "web:lint": "pnpm --filter @lunedoc/web lint",
-    "marketing:dev": "pnpm --filter @lunedoc/marketing dev",
-    "marketing:build": "pnpm --filter @lunedoc/marketing build",
     "prototype:serve": "python3 -m http.server 8765"
   }
 }
