@@ -7,6 +7,8 @@ from .job import (
     JobTool,
     MergeJobRequest,
     ResultFile,
+    SplitJobRequest,
+    SplitMode,
 )
 
 __all__ = [
@@ -21,4 +23,6 @@ __all__ = [
     "JobTool",
     "MergeJobRequest",
     "ResultFile",
+    "SplitJobRequest",
+    "SplitMode",
 ]
