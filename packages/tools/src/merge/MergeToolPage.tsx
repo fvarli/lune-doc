@@ -1,30 +1,52 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import {
+  BackendUnreachableError,
+  JobFailedError,
+  JobTimeoutError,
+  LunedocApiError,
+  NotFoundError,
+  TooLargeError,
+  UnsupportedMediaTypeError,
+  forgetToken,
+  getClient,
+  rememberFile,
+  saveToken,
+  type UploadedFile,
+} from '@lunedoc/api';
 import { useI18n, type Lang } from '@lunedoc/i18n';
-import { Icon, PdfThumb } from '@lunedoc/ui';
+import { DropZone, Icon, PdfThumb } from '@lunedoc/ui';
 import { btnGhost } from '../_internal/btnGhost';
 
-interface MergeFile {
-  id: number;
-  name: string;
-  size: string; // includes " MB" suffix; parseFloat() takes the leading number
-  pages: number;
-}
+const MAX_BYTES = 50 * 1024 * 1024;
 
 interface MergeToolPageProps {
   lang: Lang;
 }
 
+type Stage = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
+
+interface MergedResult {
+  file_id: string;
+  name: string;
+  size: number;
+}
+
 export function MergeToolPage({ lang }: MergeToolPageProps) {
   const { t } = useI18n(lang);
-  const [files, setFiles] = useState<MergeFile[]>([
-    { id: 1, name: '01-cover.pdf',              size: '0.4 MB', pages: 1 },
-    { id: 2, name: '02-executive-summary.pdf',  size: '1.2 MB', pages: 4 },
-    { id: 3, name: '03-financials.pdf',         size: '5.8 MB', pages: 18 },
-    { id: 4, name: '04-appendix.pdf',           size: '2.1 MB', pages: 12 },
-  ]);
-  const totalMB = files.reduce((s, f) => s + parseFloat(f.size), 0).toFixed(1);
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [stage, setStage] = useState<Stage>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<MergedResult | null>(null);
+  const totalMB = files
+    .reduce((s, f) => s + f.size / (1024 * 1024), 0)
+    .toFixed(1);
 
-  const move = (idx: number, dir: -1 | 1) => {
+  // Token used for the next upload + the merge job. Set on first upload,
+  // reused for every subsequent upload (server validates X-Owner-Token
+  // and reuses the same hash).
+  const sharedTokenRef = useRef<string | null>(null);
+
+  function move(idx: number, dir: -1 | 1) {
     const j = idx + dir;
     if (j < 0 || j >= files.length) return;
     const next = [...files];
@@ -34,8 +56,102 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
     next[idx] = b;
     next[j] = a;
     setFiles(next);
-  };
-  const remove = (id: number) => setFiles(files.filter((f) => f.id !== id));
+  }
+
+  function remove(file_id: string) {
+    forgetToken(file_id);
+    setFiles((prev) => prev.filter((f) => f.file_id !== file_id));
+  }
+
+  async function handleFiles(picked: File[]) {
+    setError(null);
+    setStage('uploading');
+    const client = getClient();
+    try {
+      for (const raw of picked) {
+        const opts = sharedTokenRef.current
+          ? { extendToken: sharedTokenRef.current }
+          : {};
+        const uploaded = await client.uploadFile(raw, opts);
+        sharedTokenRef.current = uploaded.owner_token;
+        saveToken(uploaded.file_id, uploaded.owner_token);
+        rememberFile({
+          file_id: uploaded.file_id,
+          name: uploaded.name,
+          mime: uploaded.mime,
+          size: uploaded.size,
+          expires_at: uploaded.expires_at,
+        });
+        setFiles((prev) => [...prev, uploaded]);
+      }
+      setStage('idle');
+    } catch (e) {
+      setError(uploadErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  function handleReject(rejected: File[]) {
+    if (rejected.length > 0) {
+      setError('error_upload_too_large');
+      setStage('error');
+    }
+  }
+
+  async function runMerge() {
+    if (files.length < 2 || !sharedTokenRef.current) return;
+    setError(null);
+    setStage('processing');
+    const client = getClient();
+    const token = sharedTokenRef.current;
+    try {
+      const job = await client.createMergeJob(
+        files.map((f) => f.file_id),
+        token,
+      );
+      const done = await client.pollJob(job.job_id, token);
+      const result = await client.getJobResult(done.job_id, token);
+      const out = result.outputs[0];
+      if (!out) throw new Error('merge produced no output');
+      setResult({ file_id: out.file_id, name: out.name, size: out.size });
+      saveToken(out.file_id, token);
+      setStage('done');
+    } catch (e) {
+      setError(jobErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  async function downloadResult() {
+    if (!result || !sharedTokenRef.current) return;
+    try {
+      const blob = await getClient().downloadFile(
+        result.file_id,
+        sharedTokenRef.current,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(jobErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  function startOver() {
+    files.forEach((f) => forgetToken(f.file_id));
+    if (result) forgetToken(result.file_id);
+    setFiles([]);
+    setResult(null);
+    setError(null);
+    sharedTokenRef.current = null;
+    setStage('idle');
+  }
 
   return (
     <div style={{ background: 'var(--bg-muted)', minHeight: '100%' }}>
@@ -56,7 +172,14 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
             <Icon name="arrow-left" size={14} />
             {t('tool_back')}
           </a>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 24 }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 14,
+              alignItems: 'flex-start',
+              marginBottom: 24,
+            }}
+          >
             <div
               style={{
                 width: 48,
@@ -72,123 +195,263 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
               <Icon name="merge" size={22} />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <h1 style={{ fontSize: 32, fontWeight: 600, letterSpacing: '-0.02em' }}>{t('merge_title')}</h1>
-              <p style={{ marginTop: 4, fontSize: 15, color: 'var(--fg-muted)' }}>{t('merge_sub')}</p>
+              <h1
+                style={{
+                  fontSize: 32,
+                  fontWeight: 600,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {t('merge_title')}
+              </h1>
+              <p
+                style={{
+                  marginTop: 4,
+                  fontSize: 15,
+                  color: 'var(--fg-muted)',
+                }}
+              >
+                {t('merge_sub')}
+              </p>
             </div>
           </div>
 
-          <div className="pl-card" style={{ padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>
-                {t('merge_files')}{' '}
-                <span style={{ color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)', marginLeft: 6 }}>
-                  {files.length}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
-                {totalMB} MB {t('merge_total')}
-              </div>
+          {error && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                borderRadius: 10,
+                background: 'oklch(0.96 0.04 30)',
+                color: 'oklch(0.40 0.18 30)',
+                border: '1px solid oklch(0.85 0.1 30)',
+                fontSize: 13,
+              }}
+            >
+              {t(error)}
             </div>
+          )}
 
-            <div style={{ display: 'grid', gap: 8 }}>
-              {files.map((f, i) => (
+          <div className="pl-card" style={{ padding: 24 }}>
+            {files.length === 0 ? (
+              <DropZone
+                accept="application/pdf"
+                maxBytes={MAX_BYTES}
+                multiple
+                onFiles={handleFiles}
+                onReject={handleReject}
+                disabled={stage === 'uploading' || stage === 'processing'}
+                testId="merge-dropzone"
+              >
+                <Icon name="upload" size={20} />
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {t('upload_title')}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                  {t('upload_subtitle')}
+                </div>
+              </DropZone>
+            ) : (
+              <>
                 <div
-                  key={f.id}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'auto auto 1fr auto auto',
-                    gap: 12,
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
-                    padding: 12,
-                    borderRadius: 10,
-                    background: 'var(--bg-elev)',
-                    border: '1px solid var(--line)',
+                    marginBottom: 14,
                   }}
                 >
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    {t('merge_files')}{' '}
+                    <span
+                      style={{
+                        color: 'var(--fg-subtle)',
+                        fontFamily: 'var(--font-mono)',
+                        marginLeft: 6,
+                      }}
+                    >
+                      {files.length}
+                    </span>
+                  </div>
                   <div
                     style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: 999,
-                      background: 'var(--bg-muted)',
+                      fontSize: 12,
                       color: 'var(--fg-subtle)',
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontSize: 11,
-                      fontWeight: 600,
                       fontFamily: 'var(--font-mono)',
                     }}
                   >
-                    {i + 1}
+                    {totalMB} MB {t('merge_total')}
                   </div>
-                  <PdfThumb w={32} h={42} />
-                  <div style={{ minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {f.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--fg-subtle)',
-                        fontFamily: 'var(--font-mono)',
-                        marginTop: 2,
-                      }}
-                    >
-                      {f.size} · {f.pages} {t('pages_short')}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => move(i, -1)} disabled={i === 0} style={btnGhost(i === 0)}>
-                      <Icon name="chevron-down" size={12} style={{ transform: 'rotate(180deg)' }} />
-                    </button>
-                    <button onClick={() => move(i, 1)} disabled={i === files.length - 1} style={btnGhost(i === files.length - 1)}>
-                      <Icon name="chevron-down" size={12} />
-                    </button>
-                  </div>
-                  <button onClick={() => remove(f.id)} style={btnGhost(false)}>
-                    <Icon name="trash" size={14} />
-                  </button>
                 </div>
-              ))}
-            </div>
 
-            <button
-              style={{
-                marginTop: 12,
-                width: '100%',
-                padding: '14px',
-                borderRadius: 10,
-                background: 'transparent',
-                border: '1.5px dashed var(--line-strong)',
-                color: 'var(--fg-muted)',
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-              }}
-            >
-              <Icon name="plus" size={14} /> {t('merge_add')}
-            </button>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {files.map((f, i) => (
+                    <div
+                      key={f.file_id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'auto auto 1fr auto auto',
+                        gap: 12,
+                        alignItems: 'center',
+                        padding: 12,
+                        borderRadius: 10,
+                        background: 'var(--bg-elev)',
+                        border: '1px solid var(--line)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 999,
+                          background: 'var(--bg-muted)',
+                          color: 'var(--fg-subtle)',
+                          display: 'grid',
+                          placeItems: 'center',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      >
+                        {i + 1}
+                      </div>
+                      <PdfThumb w={32} h={42} />
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {f.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--fg-subtle)',
+                            fontFamily: 'var(--font-mono)',
+                            marginTop: 2,
+                          }}
+                        >
+                          {(f.size / (1024 * 1024)).toFixed(1)} MB
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          onClick={() => move(i, -1)}
+                          disabled={i === 0}
+                          style={btnGhost(i === 0)}
+                        >
+                          <Icon
+                            name="chevron-down"
+                            size={12}
+                            style={{ transform: 'rotate(180deg)' }}
+                          />
+                        </button>
+                        <button
+                          onClick={() => move(i, 1)}
+                          disabled={i === files.length - 1}
+                          style={btnGhost(i === files.length - 1)}
+                        >
+                          <Icon name="chevron-down" size={12} />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => remove(f.file_id)}
+                        style={btnGhost(false)}
+                      >
+                        <Icon name="trash" size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <DropZone
+                  accept="application/pdf"
+                  maxBytes={MAX_BYTES}
+                  multiple
+                  onFiles={handleFiles}
+                  onReject={handleReject}
+                  disabled={stage === 'uploading' || stage === 'processing'}
+                >
+                  <span
+                    style={{
+                      fontSize: 13,
+                      color: 'var(--fg-muted)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <Icon name="plus" size={14} /> {t('merge_add')}
+                  </span>
+                </DropZone>
+              </>
+            )}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button className="pl-btn pl-btn-ghost pl-btn-lg">{t('start_over')}</button>
-            <button className="pl-btn pl-btn-primary pl-btn-lg">
-              <Icon name="merge" size={16} />
-              {t('merge_cta').replace('{n}', String(files.length))}
-            </button>
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              marginTop: 18,
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+            }}
+          >
+            {stage === 'processing' && (
+              <span
+                style={{ fontSize: 13, color: 'var(--fg-muted)' }}
+                aria-live="polite"
+              >
+                {t('state_processing')}
+              </span>
+            )}
+            {stage === 'done' && result && (
+              <button
+                className="pl-btn pl-btn-primary pl-btn-lg"
+                onClick={downloadResult}
+              >
+                <Icon name="download" size={16} />
+                {t('state_done')} — {(result.size / (1024 * 1024)).toFixed(1)} MB
+              </button>
+            )}
+            {stage !== 'done' && (
+              <>
+                <button
+                  className="pl-btn pl-btn-ghost pl-btn-lg"
+                  onClick={startOver}
+                  disabled={stage === 'uploading' || stage === 'processing'}
+                >
+                  {t('start_over')}
+                </button>
+                <button
+                  className="pl-btn pl-btn-primary pl-btn-lg"
+                  onClick={runMerge}
+                  disabled={
+                    files.length < 2 ||
+                    stage === 'uploading' ||
+                    stage === 'processing'
+                  }
+                >
+                  <Icon name="merge" size={16} />
+                  {t('merge_cta').replace('{n}', String(files.length))}
+                </button>
+              </>
+            )}
+            {stage === 'done' && (
+              <button
+                className="pl-btn pl-btn-ghost pl-btn-lg"
+                onClick={startOver}
+              >
+                {t('start_over')}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -196,3 +459,20 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
   );
 }
 
+function uploadErrorKey(e: unknown): string {
+  if (e instanceof TooLargeError) return 'error_upload_too_large';
+  if (e instanceof UnsupportedMediaTypeError) return 'error_upload_unsupported';
+  if (e instanceof BackendUnreachableError) return 'error_backend_unreachable';
+  if (e instanceof NotFoundError) return 'error_session_expired';
+  return 'error_network';
+}
+
+function jobErrorKey(e: unknown): string {
+  if (e instanceof JobFailedError) return 'error_job_failed';
+  if (e instanceof JobTimeoutError) return 'error_job_timeout';
+  if (e instanceof BackendUnreachableError) return 'error_backend_unreachable';
+  if (e instanceof NotFoundError) return 'error_file_expired';
+  if (e instanceof LunedocApiError && e.status === 410)
+    return 'error_result_expired';
+  return 'error_job_failed';
+}

@@ -93,6 +93,8 @@ importers:
         specifier: ^8.0.10
         version: 8.0.10(@types/node@24.12.2)(esbuild@0.27.7)
 
+  packages/api: {}
+
   packages/config: {}
 
   packages/i18n:
@@ -107,6 +109,9 @@ importers:
 
   packages/tools:
     dependencies:
+      '@lunedoc/api':
+        specifier: workspace:*
+        version: link:../api
       '@lunedoc/i18n':
         specifier: workspace:*
         version: link:../i18n

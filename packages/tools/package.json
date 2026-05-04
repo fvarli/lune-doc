@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@lunedoc/api": "workspace:*",
     "@lunedoc/i18n": "workspace:*",
     "@lunedoc/ui": "workspace:*"
   },
