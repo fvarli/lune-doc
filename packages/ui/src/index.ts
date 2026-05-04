@@ -10,4 +10,5 @@ export { LangSwitch } from './layout/LangSwitch';
 export { Header } from './layout/Header';
 export { MobileBottomNav } from './layout/MobileBottomNav';
 export { Footer } from './layout/Footer';
+export { DropZone } from './inputs/DropZone';
 export type { Lang } from './types';
