@@ -1,6 +1,6 @@
 # Lunedoc — Project Status & Roadmap
 
-**Snapshot date:** 2026-05-03
+**Snapshot date:** 2026-05-04
 
 This is the single orientation document for the project. New contributors (and new chat sessions) should read this first.
 
@@ -18,7 +18,7 @@ State of the prototype:
 - **i18n live in EN / TR / ES** for every tool surface; switching locale via the Tweaks panel re-renders all artboards.
 - **Prototype is the design source of truth** and remains served from `python3 -m http.server 8765`. It was not modified during the migration and won't be until the Phase 8 cutover (move into `prototype/design-canvas/`).
 - **Frontend migration**: ✓ DONE through Phase 7 on `main`. `apps/web` (Vite + React 19 + TS) at port 5173 serves all 8 tool routes. `apps/marketing` (Astro 6 + React islands + TS) builds 25 static HTML files (8 tools × 3 locales + home) for the public SEO surface. See §8 R3 for commit ranges.
-- **Backend**: not started. API design is proposed in `docs/backend-api-plan.md`. **This is the next workstream.**
+- **Backend**: Phase 0 in progress on `main`. `services/api/` (FastAPI + async SQLAlchemy + asyncpg + Celery + Redis + LocalDiskStorage) ships the anonymous file lifecycle (POST/GET/DELETE/download under `/api/v1/files`), `/api/v1/healthz`, owner-token HMAC auth, MIME whitelist (415), 50 MB cap (413), and a 60 s TTL sweeper. Tool endpoints (`/api/v1/jobs/*`) and auth/me surfaces are stubbed at 501 — Phase 1 + Phase 4 work. See `docs/backend-api-plan.md` and `services/api/README.md`. Postgres + Redis run as host services; **no Docker**.
 
 ---
 
@@ -41,6 +41,9 @@ lune-doc/                               ← pnpm workspace
 │   ├── ui/                              ← @lunedoc/ui · tokens.css + Logo/Icon/Header/Footer/ToolCard/PdfThumb/LangSwitch + Lang type
 │   ├── i18n/                            ← @lunedoc/i18n · 336-key EN/TR/ES JSON tables + useI18n hook
 │   └── tools/                           ← @lunedoc/tools · 8 ported tool widgets (Merge/Split/Watermark/Sign/OCR/Edit/Compress/Convert)
+├── services/
+│   └── api/                             ← lunedoc-api · FastAPI + Postgres (asyncpg) + Celery/Redis · uv-managed · port 8000
+│       └── src/lunedoc_api/{main,settings,db,storage,owner_token,mime,routes/,workers/,models/}
 └── docs/
     ├── project-status.md                ← this file
     ├── backend-api-plan.md              ← API design proposal (next workstream)
@@ -149,6 +152,8 @@ The table below describes the **prototype** version (the design spec). The widge
 | D7 | **Files are ephemeral**: 1-hour TTL after upload or job completion (later wins). No backups. | confirmed | Drives privacy story and storage sizing. |
 | D8 | **Anonymous-first** flow. Auth and dashboard ship after the tool pipeline is live. | confirmed | Eight tools work without a user account in MVP. |
 | D9 | **Edit PDF is intentionally an overlay/redact editor**, not Acrobat-style content editing. | confirmed | Set UI/marketing copy expectations accordingly. |
+| D10 | **Frontend consolidates to a single app long-term.** `apps/marketing` will be merged into `apps/web` in a separate later task; the split was a Phase 7 scaffolding choice, not the end state. `apps/marketing` remains in-tree until that consolidation lands. | 2026-05-04 | Captured to anchor the next frontend workstream once backend Phase 1 is underway. |
+| D11 | **Backend runs on host services, not Docker.** Postgres + Redis must be installed as Xubuntu/Linux daemons; the repo intentionally has no `Dockerfile` or `docker-compose.yml`. `uv` (Astral) is the Python package manager. | 2026-05-04 | Setup commands documented in `services/api/README.md`. Revisit only if multi-host deploy actually demands it. |
 
 ---
 
@@ -194,12 +199,21 @@ All work merged to `main`; the working `phase-2/scaffold` branch was deleted aft
 
 ### R4 — Backend MVP implementation
 Per `docs/backend-api-plan.md` §8 — 7-week plan, anonymous tools first, auth and dashboard last. Concretely:
-- Phase 0: API skeleton + storage + sweeper.
+- **Phase 0: API skeleton + storage + sweeper. — IN PROGRESS** (2026-05-04). `services/api/` lives on `main`. Files lifecycle endpoints, `/healthz`, owner-token HMAC, MIME 415, size 413, TTL sweeper, 7/7 pytest green against `lunedoc_test`. See commits `dfe86b5` (scaffold) + `910b284` (files + sweeper + tests). Stubs at 501 for `/jobs/*`, `/auth/*`, `/me/*`.
 - Phase 1: Merge / Split / Watermark / Sign / Edit (5 of 8 tools).
 - Phase 2: Compress + Convert.
 - Phase 3: OCR.
 - Phase 4: Auth + dashboard + quotas.
 - Phase 5: R2, ClamAV, signed URLs, ops UI.
+
+### R6 — Frontend consolidation: merge `apps/marketing` into `apps/web`
+Per D10 (above). Separate task; not bundled into R4. The marketing-vs-web split was useful as a Phase 7 stepping stone but is not the long-term shape. Outline:
+- Move Astro pages + per-locale routes into `apps/web` (likely as a sub-route tree or a hybrid SSR/SSG setup, exact framework TBD).
+- Collapse the duplicated `<Header>`/`<Footer>`/`<LangSwitch>` mounts into a single tree.
+- Retire `apps/marketing/` and update `pnpm-workspace.yaml` + root scripts.
+- Verify SEO surfaces (canonical, hreflang, JSON-LD) survive the move with no regression.
+
+Timing: most natural after backend Phase 1 ships at least Merge + Split end-to-end (so the consolidation refactor doesn't conflict with widget API rewiring).
 
 ### R5 — Flutter-ready API confirmation
 Sized inside R4, no separate workstream:
