@@ -125,3 +125,62 @@ async def test_get_unknown_id_returns_404(client: AsyncClient) -> None:
         headers={"X-Owner-Token": "anything"},
     )
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_upload_extends_owner_token(client: AsyncClient) -> None:
+    """A second upload with X-Owner-Token = first upload's token shares
+    the token hash, so one token grants access to both files."""
+    # First upload — mints a fresh token.
+    resp_a = await client.post(
+        "/api/v1/files",
+        files={"file": ("a.pdf", io.BytesIO(SAMPLE_PDF), "application/octet-stream")},
+    )
+    assert resp_a.status_code == 201
+    token = resp_a.json()["owner_token"]
+    fid_a = resp_a.json()["file_id"]
+
+    # Second upload — extends.
+    resp_b = await client.post(
+        "/api/v1/files",
+        files={"file": ("b.pdf", io.BytesIO(SAMPLE_PDF), "application/octet-stream")},
+        headers={"X-Owner-Token": token},
+    )
+    assert resp_b.status_code == 201
+    body_b = resp_b.json()
+    assert body_b["owner_token"] == token  # echoed back unchanged
+    fid_b = body_b["file_id"]
+    assert fid_b != fid_a  # distinct files
+
+    # Single token grants access to both.
+    for fid in (fid_a, fid_b):
+        resp = await client.get(
+            f"/api/v1/files/{fid}", headers={"X-Owner-Token": token}
+        )
+        assert resp.status_code == 200, fid
+
+    # Wrong token still 404s for both.
+    for fid in (fid_a, fid_b):
+        resp = await client.get(
+            f"/api/v1/files/{fid}", headers={"X-Owner-Token": "WRONG"}
+        )
+        assert resp.status_code == 404, fid
+
+
+@pytest.mark.asyncio
+async def test_upload_with_malformed_extend_token_mints_fresh(
+    client: AsyncClient,
+) -> None:
+    """If X-Owner-Token doesn't match the 32-char base32 format, the
+    server ignores it and mints a fresh token — defense against weak
+    or attacker-supplied tokens."""
+    resp = await client.post(
+        "/api/v1/files",
+        files={"file": ("a.pdf", io.BytesIO(SAMPLE_PDF), "application/octet-stream")},
+        headers={"X-Owner-Token": "not-base32!"},
+    )
+    assert resp.status_code == 201
+    token = resp.json()["owner_token"]
+    # Fresh format: 32 chars from [A-Z2-7].
+    assert len(token) == 32
+    assert token != "not-base32!"

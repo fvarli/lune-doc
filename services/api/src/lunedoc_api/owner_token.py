@@ -11,15 +11,25 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import re
 import secrets
 
 from .settings import get_settings
+
+# Tokens are exactly 32 chars from the base32 alphabet (A–Z, 2–7),
+# matching what `generate()` produces.
+_TOKEN_FORMAT = re.compile(r"^[A-Z2-7]{32}$")
 
 
 def generate() -> str:
     """32-character base32 (no padding). 160 bits of entropy."""
     raw = secrets.token_bytes(20)
     return base64.b32encode(raw).decode("ascii").rstrip("=")
+
+
+def is_valid_format(token: str) -> bool:
+    """True iff `token` matches the shape produced by `generate()`."""
+    return bool(_TOKEN_FORMAT.fullmatch(token))
 
 
 def hash_token(token: str) -> str:

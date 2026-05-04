@@ -24,7 +24,7 @@ from ..db import get_session
 from ..mime import is_allowed, sniff_bytes
 from ..models.file import File as FileRow, FileMetadata, UploadResponse
 from ..owner_token import generate as generate_token
-from ..owner_token import hash_token, verify
+from ..owner_token import hash_token, is_valid_format, verify
 from ..settings import get_settings
 from ..storage import TooLargeError, get_storage
 
@@ -50,8 +50,19 @@ def _sanitize_filename(raw: str | None) -> str:
 )
 async def upload_file(
     file: UploadFile = File(...),
+    x_owner_token: str | None = Header(default=None),
     db: AsyncSession = Depends(get_session),
 ) -> UploadResponse:
+    """Upload a single file.
+
+    If the request carries `X-Owner-Token` and the value matches the
+    32-char base32 format produced by `owner_token.generate()`, the new
+    file inherits that token's hash — so multiple uploads in one user
+    session can share a single token (needed by Merge / Split flows
+    that take more than one input file).
+
+    If the header is absent or malformed, a fresh token is minted.
+    """
     settings = get_settings()
     storage = get_storage()
 
@@ -74,7 +85,10 @@ async def upload_file(
 
     file_id = str(uuid.uuid4())
     storage_key = file_id  # 1:1 in Phase 0; sharded by storage layer.
-    token = generate_token()
+    if x_owner_token and is_valid_format(x_owner_token):
+        token = x_owner_token
+    else:
+        token = generate_token()
 
     try:
         # UploadFile.file is the underlying SpooledTemporaryFile (sync).
