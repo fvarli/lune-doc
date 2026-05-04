@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# uv
+.venv/
+
+# env / secrets
+.env
+.env.local
+
+# Local-only file storage (uploads + results)
+.local-storage/
+tests/.test-storage/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
