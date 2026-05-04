@@ -25,6 +25,7 @@ from ..models.job import (
     JobStatusResponse,
     MergeJobRequest,
     ResultFile,
+    SplitJobRequest,
 )
 from ..owner_token import hash_token, verify
 
@@ -184,8 +185,72 @@ async def get_job_result(
     )
 
 
-# Other tools still ship as 501 until they're implemented.
-@router.post("/jobs/split", summary="Create a split job (Phase 1)")
+@router.post(
+    "/jobs/split",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=JobStatusResponse,
+    summary="Create a split job",
+)
+async def create_split_job(
+    body: SplitJobRequest,
+    x_owner_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_session),
+) -> JobStatusResponse:
+    if not x_owner_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+    if body.mode == "ranges" and not body.ranges:
+        # Pydantic validator already rejects empty/None for `mode='ranges'`,
+        # but defend in depth.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="ranges required when mode='ranges'",
+        )
+
+    # Verify caller owns the input file. Same no-leak policy: 404 on
+    # missing-row or wrong-token, 415 on non-PDF.
+    f = (
+        await db.execute(select(FileRow).where(FileRow.id == body.file_id))
+    ).scalar_one_or_none()
+    if f is None or not verify(x_owner_token, f.owner_token_hash):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    if f.mime != "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"file {body.file_id} is not a PDF",
+        )
+
+    job_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    params: dict = {"mode": body.mode}
+    if body.mode == "ranges":
+        params["ranges"] = body.ranges
+
+    job = Job(
+        id=job_id,
+        tool="split",
+        status="queued",
+        input_file_ids=[body.file_id],
+        output_file_ids=[],
+        params=params,
+        error=None,
+        owner_token_hash=hash_token(x_owner_token),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    from ..workers.tasks.split import run_split_job
+
+    run_split_job.delay(job_id)
+
+    await db.refresh(job)
+    return _job_to_status(job)
+
+
+# Tools that still 501 until they land.
 @router.post("/jobs/watermark", summary="Create a watermark job (Phase 1)")
 @router.post("/jobs/sign", summary="Create a sign job (Phase 1)")
 @router.post("/jobs/edit", summary="Create an edit job (Phase 1)")
