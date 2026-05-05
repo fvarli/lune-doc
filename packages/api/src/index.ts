@@ -20,6 +20,13 @@ export {
   saveToken,
 } from './owner_token';
 export type {
+  EditHighlight,
+  EditJobRequest,
+  EditOperation,
+  EditOpType,
+  EditRedact,
+  EditShapeRect,
+  EditTextOverlay,
   FileMeta,
   JobResultResponse,
   JobStatus,

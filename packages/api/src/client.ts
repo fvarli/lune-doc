@@ -13,6 +13,7 @@ import {
   fromResponse,
 } from './errors';
 import type {
+  EditJobRequest,
   JobResultResponse,
   JobStatusResponse,
   SignJobRequest,
@@ -153,6 +154,21 @@ export class LunedocClient {
     token: string,
   ): Promise<JobStatusResponse> {
     const resp = await this.request('/jobs/sign', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Owner-Token': token,
+      },
+      body: JSON.stringify(req),
+    });
+    return (await resp.json()) as JobStatusResponse;
+  }
+
+  async createEditJob(
+    req: EditJobRequest,
+    token: string,
+  ): Promise<JobStatusResponse> {
+    const resp = await this.request('/jobs/edit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,61 +1,220 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
+import {
+  BackendUnreachableError,
+  JobFailedError,
+  JobTimeoutError,
+  LunedocApiError,
+  NotFoundError,
+  TooLargeError,
+  UnsupportedMediaTypeError,
+  ValidationError,
+  forgetToken,
+  getClient,
+  rememberFile,
+  saveToken,
+  type EditOperation,
+  type UploadedFile,
+} from '@lunedoc/api';
 import { useI18n, type Lang } from '@lunedoc/i18n';
-import { Icon, PdfThumb } from '@lunedoc/ui';
+import { DropZone, Icon } from '@lunedoc/ui';
+import type { IconName } from '@lunedoc/ui';
 
-type EditMode = 'text' | 'highlight' | 'redact' | 'shape';
-type StrokeStyle = 'outline' | 'solid';
-type ColorId = 'yellow' | 'pink' | 'cyan' | 'green' | 'black';
+const MAX_BYTES = 50 * 1024 * 1024;
 
-interface EditColor {
-  id: ColorId;
-  swatch: string;
-  ink: string;
-}
+type EditMode = 'text_overlay' | 'highlight' | 'redact' | 'shape_rect';
+type Stage = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
 interface EditTool {
   id: EditMode;
   label: string;
-  glyph: ReactNode;
+  icon: IconName;
+}
+
+interface EditedResult {
+  file_id: string;
+  name: string;
+  size: number;
 }
 
 interface EditPDFToolPageProps {
   lang: Lang;
 }
 
+// Default placement when the user adds an operation. Coordinates are
+// normalized 0–1 fractions of the target page. The mock UI didn't have
+// real click-to-position; users adjust via the page input.
+const DEFAULTS: Record<EditMode, { x: number; y: number; width: number; height: number }> = {
+  text_overlay: { x: 0.1, y: 0.1, width: 0.5, height: 0.05 },
+  highlight: { x: 0.1, y: 0.2, width: 0.5, height: 0.04 },
+  redact: { x: 0.1, y: 0.3, width: 0.5, height: 0.05 },
+  shape_rect: { x: 0.1, y: 0.4, width: 0.3, height: 0.1 },
+};
+
 export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
   const { t } = useI18n(lang);
-  const [tool, setTool] = useState<EditMode>('text');
+  const [file, setFile] = useState<UploadedFile | null>(null);
+  const [tool, setTool] = useState<EditMode>('text_overlay');
   const [text, setText] = useState<string>(t('edit_text_default'));
-  const [color, setColor] = useState<ColorId>('yellow');
-  const [strokeStyle, setStrokeStyle] = useState<StrokeStyle>('outline');
-  const [page, setPage] = useState<number>(3);
-  const totalPages = 7;
+  const [color, setColor] = useState<string>('#ffe066');
+  const [page, setPage] = useState<number>(1);
+  const [operations, setOperations] = useState<EditOperation[]>([]);
+  const [stage, setStage] = useState<Stage>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<EditedResult | null>(null);
 
   useEffect(() => {
     setText(t('edit_text_default'));
   }, [lang, t]);
 
-  const colors: EditColor[] = [
-    { id: 'yellow', swatch: 'oklch(0.92 0.16 95)',  ink: 'oklch(0.30 0.10 95)' },
-    { id: 'pink',   swatch: 'oklch(0.85 0.14 350)', ink: 'oklch(0.40 0.16 350)' },
-    { id: 'cyan',   swatch: 'oklch(0.86 0.10 220)', ink: 'oklch(0.40 0.14 220)' },
-    { id: 'green',  swatch: 'oklch(0.86 0.14 150)', ink: 'oklch(0.36 0.14 150)' },
-    { id: 'black',  swatch: 'oklch(0.20 0 0)',      ink: 'oklch(0.20 0 0)' },
-  ];
-  // Index 0 ('yellow') is structurally guaranteed by the literal above.
-  const activeColor = colors.find((c) => c.id === color) ?? colors[0]!;
-
   const tools: EditTool[] = [
-    { id: 'text',      label: t('edit_tool_text'),      glyph: <EditGlyphText /> },
-    { id: 'highlight', label: t('edit_tool_highlight'), glyph: <EditGlyphHighlight /> },
-    { id: 'redact',    label: t('edit_tool_redact'),    glyph: <EditGlyphRedact /> },
-    { id: 'shape',     label: t('edit_tool_shape'),     glyph: <EditGlyphShape /> },
+    { id: 'text_overlay', label: t('edit_tool_text'),      icon: 'edit' },
+    { id: 'highlight',    label: t('edit_tool_highlight'), icon: 'watermark' },
+    { id: 'redact',       label: t('edit_tool_redact'),    icon: 'trash' },
+    { id: 'shape_rect',   label: t('edit_tool_shape'),     icon: 'grid' },
   ];
+
+  async function handlePdfFiles(picked: File[]) {
+    const raw = picked[0];
+    if (!raw) return;
+    setError(null);
+    setStage('uploading');
+    try {
+      const uploaded = await getClient().uploadFile(raw);
+      saveToken(uploaded.file_id, uploaded.owner_token);
+      rememberFile({
+        file_id: uploaded.file_id,
+        name: uploaded.name,
+        mime: uploaded.mime,
+        size: uploaded.size,
+        expires_at: uploaded.expires_at,
+      });
+      setFile(uploaded);
+      setStage('idle');
+    } catch (e) {
+      setError(uploadErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  function handlePdfReject(rejected: File[]) {
+    if (rejected.length > 0) {
+      setError('error_upload_too_large');
+      setStage('error');
+    }
+  }
+
+  function addOperation() {
+    setError(null);
+    const d = DEFAULTS[tool];
+    if (tool === 'text_overlay') {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        setError('error_invalid_ranges');
+        setStage('error');
+        return;
+      }
+      setOperations((prev) => [
+        ...prev,
+        { type: 'text_overlay', page, x: d.x, y: d.y, width: d.width, text: trimmed },
+      ]);
+    } else if (tool === 'highlight') {
+      setOperations((prev) => [
+        ...prev,
+        {
+          type: 'highlight',
+          page,
+          x: d.x,
+          y: d.y,
+          width: d.width,
+          height: d.height,
+          color,
+        },
+      ]);
+    } else if (tool === 'redact') {
+      setOperations((prev) => [
+        ...prev,
+        { type: 'redact', page, x: d.x, y: d.y, width: d.width, height: d.height },
+      ]);
+    } else {
+      setOperations((prev) => [
+        ...prev,
+        {
+          type: 'shape_rect',
+          page,
+          x: d.x,
+          y: d.y,
+          width: d.width,
+          height: d.height,
+          color,
+        },
+      ]);
+    }
+  }
+
+  function removeOperation(idx: number) {
+    setOperations((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function runEdit() {
+    if (!file || operations.length === 0) return;
+    setError(null);
+    setStage('processing');
+    const client = getClient();
+    const token = file.owner_token;
+    try {
+      const job = await client.createEditJob(
+        { file_id: file.file_id, operations },
+        token,
+      );
+      const done = await client.pollJob(job.job_id, token);
+      const r = await client.getJobResult(done.job_id, token);
+      const out = r.outputs[0];
+      if (!out) throw new Error('edit produced no output');
+      saveToken(out.file_id, token);
+      setResult({ file_id: out.file_id, name: out.name, size: out.size });
+      setStage('done');
+    } catch (e) {
+      setError(jobErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  async function downloadResult() {
+    if (!result || !file) return;
+    try {
+      const blob = await getClient().downloadFile(result.file_id, file.owner_token);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(jobErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  function startOver() {
+    if (file) forgetToken(file.file_id);
+    if (result) forgetToken(result.file_id);
+    setFile(null);
+    setResult(null);
+    setError(null);
+    setOperations([]);
+    setText(t('edit_text_default'));
+    setTool('text_overlay');
+    setColor('#ffe066');
+    setPage(1);
+    setStage('idle');
+  }
 
   return (
     <div style={{ background: 'var(--bg-muted)', minHeight: '100%' }}>
       <div style={{ padding: '32px 28px 64px' }}>
-        <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+        <div style={{ maxWidth: 920, margin: '0 auto' }}>
           <a
             href="/"
             style={{
@@ -71,7 +230,14 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
             <Icon name="arrow-left" size={14} />
             {t('tool_back')}
           </a>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 24 }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 14,
+              alignItems: 'flex-start',
+              marginBottom: 24,
+            }}
+          >
             <div
               style={{
                 width: 48,
@@ -87,295 +253,323 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
               <Icon name="edit" size={22} />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <h1 style={{ fontSize: 32, fontWeight: 600, letterSpacing: '-0.02em' }}>{t('edit_title')}</h1>
-              <p style={{ marginTop: 4, fontSize: 15, color: 'var(--fg-muted)' }}>{t('edit_sub')}</p>
+              <h1
+                style={{
+                  fontSize: 32,
+                  fontWeight: 600,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {t('edit_title')}
+              </h1>
+              <p
+                style={{
+                  marginTop: 4,
+                  fontSize: 15,
+                  color: 'var(--fg-muted)',
+                }}
+              >
+                {t('edit_sub')}
+              </p>
             </div>
           </div>
 
-          {/* Mock document strip */}
-          <div className="pl-card" style={{ padding: '10px 14px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <PdfThumb w={32} h={42} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                annual-report.pdf
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>
-                2.4 MB · {totalPages} {t('file_pages')}
-              </div>
-            </div>
-            <button
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--line)',
-                color: 'var(--fg-muted)',
-                padding: '6px 10px',
-                borderRadius: 8,
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              <Icon name="trash" size={12} />
-            </button>
-          </div>
-
+          {/* Honesty notice — overlay/redact editor, not full content reflow. */}
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 380px) minmax(0, 1fr)',
-              gap: 18,
-              alignItems: 'start',
+              padding: '10px 14px',
+              marginBottom: 18,
+              borderRadius: 10,
+              background: 'oklch(0.97 0.03 80)',
+              color: 'oklch(0.40 0.10 80)',
+              border: '1px solid oklch(0.88 0.07 80)',
+              fontSize: 12,
+              lineHeight: 1.5,
             }}
           >
-            {/* Controls */}
-            <div className="pl-card" style={{ padding: 24, minWidth: 0 }}>
-              {/* Tool mode grid */}
-              <div style={{ marginBottom: 20 }}>
+            <strong>{t('edit_honesty_title') || 'Overlay & redact editor'}</strong>:{' '}
+            {t('edit_honesty_body') ||
+              'this adds visible text, highlights, redactions, or shapes on top of pages. It does not reflow or rewrite the original text content. Redactions truly remove the underlying text from the file.'}
+          </div>
+
+          {error && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                borderRadius: 10,
+                background: 'oklch(0.96 0.04 30)',
+                color: 'oklch(0.40 0.18 30)',
+                border: '1px solid oklch(0.85 0.1 30)',
+                fontSize: 13,
+              }}
+            >
+              {t(error)}
+            </div>
+          )}
+
+          {!file ? (
+            <div className="pl-card" style={{ padding: 24 }}>
+              <DropZone
+                accept="application/pdf"
+                maxBytes={MAX_BYTES}
+                multiple={false}
+                onFiles={handlePdfFiles}
+                onReject={handlePdfReject}
+                disabled={stage === 'uploading'}
+                testId="edit-dropzone"
+              >
+                <Icon name="upload" size={20} />
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {t('upload_title')}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                  {t('upload_subtitle')}
+                </div>
+              </DropZone>
+            </div>
+          ) : (
+            <div className="pl-card" style={{ padding: 24 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--fg-subtle)',
+                  fontFamily: 'var(--font-mono)',
+                  marginBottom: 18,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
+              </div>
+
+              {/* Tool picker */}
+              <div style={{ marginBottom: 18 }}>
                 <label className="pl-label">{t('edit_tools')}</label>
-                <div role="radiogroup" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                <div
+                  role="radiogroup"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                    gap: 8,
+                  }}
+                >
                   {tools.map((tl) => {
                     const active = tool === tl.id;
                     return (
                       <button
                         key={tl.id}
-                        role="radio"
-                        aria-checked={active}
                         onClick={() => setTool(tl.id)}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 10,
-                          minWidth: 0,
-                          padding: '12px 12px',
+                          gap: 8,
+                          padding: '10px 12px',
                           borderRadius: 10,
                           background: active ? 'var(--accent-soft)' : 'var(--bg-elev)',
-                          border: '1px solid ' + (active ? 'color-mix(in oklch, var(--accent) 35%, var(--line))' : 'var(--line)'),
+                          border:
+                            '1px solid ' +
+                            (active
+                              ? 'color-mix(in oklch, var(--accent) 35%, var(--line))'
+                              : 'var(--line)'),
                           cursor: 'pointer',
                           fontFamily: 'inherit',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: active ? 'var(--accent)' : 'var(--fg)',
                           textAlign: 'left',
-                          boxShadow: active ? '0 0 0 3px var(--accent-ring)' : 'none',
-                          transition: 'all .15s ease',
                         }}
                       >
-                        <div
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: 8,
-                            background: active ? 'var(--bg-elev)' : 'var(--bg-muted)',
-                            border: '1px solid ' + (active ? 'color-mix(in oklch, var(--accent) 25%, var(--line))' : 'var(--line)'),
-                            display: 'grid',
-                            placeItems: 'center',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {tl.glyph}
-                        </div>
+                        <Icon name={tl.icon} size={14} />
+                        {tl.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Per-tool inputs */}
+              <div style={{ display: 'grid', gap: 12, marginBottom: 18 }}>
+                {tool === 'text_overlay' && (
+                  <div>
+                    <label className="pl-label">{t('edit_text_label') || 'Text'}</label>
+                    <input
+                      className="pl-input"
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      placeholder={t('edit_text_default')}
+                    />
+                  </div>
+                )}
+                {(tool === 'highlight' || tool === 'shape_rect') && (
+                  <div>
+                    <label className="pl-label">{t('edit_color') || 'Color'}</label>
+                    <input
+                      type="color"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                      style={{
+                        width: 64,
+                        height: 32,
+                        border: '1px solid var(--line)',
+                        borderRadius: 6,
+                        background: 'transparent',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="pl-label">{t('edit_page_label') || 'Page'}</label>
+                  <input
+                    className="pl-input"
+                    type="number"
+                    min={1}
+                    value={page}
+                    onChange={(e) => setPage(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    style={{ width: 80, fontFamily: 'var(--font-mono)' }}
+                  />
+                </div>
+              </div>
+
+              <button
+                className="pl-btn pl-btn-ghost"
+                onClick={addOperation}
+                disabled={stage === 'uploading' || stage === 'processing'}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+              >
+                <Icon name="plus" size={14} />
+                {t('edit_add_operation') || 'Add to operations'}
+              </button>
+
+              {/* Operations list */}
+              {operations.length > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <label className="pl-label">
+                    {t('edit_operations_label') || 'Operations'}{' '}
+                    <span
+                      style={{
+                        color: 'var(--fg-subtle)',
+                        fontFamily: 'var(--font-mono)',
+                        marginLeft: 6,
+                        fontWeight: 400,
+                      }}
+                    >
+                      {operations.length}
+                    </span>
+                  </label>
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {operations.map((op, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'auto 1fr auto',
+                          gap: 10,
+                          alignItems: 'center',
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          background: 'var(--bg-muted)',
+                          border: '1px solid var(--line)',
+                          fontSize: 12,
+                          fontFamily: 'var(--font-mono)',
+                        }}
+                      >
                         <span
                           style={{
-                            fontSize: 12.5,
-                            fontWeight: 500,
-                            color: active ? 'var(--accent)' : 'var(--fg)',
+                            color: 'var(--fg-subtle)',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {i + 1}
+                        </span>
+                        <span
+                          style={{
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {tl.label}
+                          {op.type} · p{op.page}
+                          {op.type === 'text_overlay' && ` · "${op.text}"`}
+                          {(op.type === 'highlight' || op.type === 'shape_rect') &&
+                            op.color &&
+                            ` · ${op.color}`}
                         </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Text input — only when text tool active */}
-              {tool === 'text' && (
-                <div style={{ marginBottom: 20 }}>
-                  <label className="pl-label">{t('edit_text_label')}</label>
-                  <input
-                    className="pl-input"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder={t('edit_text_placeholder')}
-                  />
+                        <button
+                          onClick={() => removeOperation(i)}
+                          style={{
+                            width: 24,
+                            height: 24,
+                            border: 0,
+                            background: 'transparent',
+                            cursor: 'pointer',
+                            color: 'var(--fg-muted)',
+                            display: 'grid',
+                            placeItems: 'center',
+                          }}
+                        >
+                          <Icon name="trash" size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-
-              {/* Color swatches */}
-              <div style={{ marginBottom: 20 }}>
-                <label className="pl-label">{t('edit_color')}</label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {colors.map((c) => {
-                    const active = color === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => setColor(c.id)}
-                        title={c.id}
-                        aria-label={c.id}
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 999,
-                          background: c.swatch,
-                          border:
-                            '1px solid ' +
-                            (c.id === 'black' ? 'transparent' : 'color-mix(in oklch, ' + c.swatch + ' 70%, black 12%)'),
-                          boxShadow: active ? '0 0 0 3px var(--accent-ring), 0 0 0 1.5px var(--accent)' : 'none',
-                          cursor: 'pointer',
-                          padding: 0,
-                          display: 'grid',
-                          placeItems: 'center',
-                        }}
-                      >
-                        {active && <Icon name="check" size={14} />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Stroke style */}
-              <div style={{ marginBottom: 20 }}>
-                <label className="pl-label">{t('edit_style')}</label>
-                <div
-                  role="tablist"
-                  style={{
-                    display: 'inline-flex',
-                    padding: 4,
-                    gap: 4,
-                    background: 'var(--bg-elev)',
-                    border: '1px solid var(--line)',
-                    borderRadius: 10,
-                  }}
-                >
-                  {([
-                    { id: 'outline', label: t('edit_style_outline') },
-                    { id: 'solid',   label: t('edit_style_solid') },
-                  ] as const).map((o) => {
-                    const active = strokeStyle === o.id;
-                    return (
-                      <button
-                        key={o.id}
-                        onClick={() => setStrokeStyle(o.id)}
-                        style={{
-                          border: 0,
-                          cursor: 'pointer',
-                          fontFamily: 'inherit',
-                          background: active ? 'var(--accent-soft)' : 'transparent',
-                          color: active ? 'var(--accent)' : 'var(--fg-muted)',
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          height: 32,
-                          padding: '0 14px',
-                          borderRadius: 8,
-                        }}
-                      >
-                        {o.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Page stepper */}
-              <div>
-                <label className="pl-label">{t('edit_page')}</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={page <= 1}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 8,
-                      background: 'var(--bg-elev)',
-                      border: '1px solid var(--line)',
-                      color: page <= 1 ? 'var(--fg-subtle)' : 'var(--fg)',
-                      cursor: page <= 1 ? 'not-allowed' : 'pointer',
-                      display: 'grid',
-                      placeItems: 'center',
-                      padding: 0,
-                    }}
-                  >
-                    <Icon name="arrow-left" size={14} />
-                  </button>
-                  <div
-                    style={{
-                      flex: 1,
-                      textAlign: 'center',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--fg)',
-                    }}
-                  >
-                    {page} / {totalPages}
-                  </div>
-                  <button
-                    onClick={() => setPage(Math.min(totalPages, page + 1))}
-                    disabled={page >= totalPages}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 8,
-                      background: 'var(--bg-elev)',
-                      border: '1px solid var(--line)',
-                      color: page >= totalPages ? 'var(--fg-subtle)' : 'var(--fg)',
-                      cursor: page >= totalPages ? 'not-allowed' : 'pointer',
-                      display: 'grid',
-                      placeItems: 'center',
-                      padding: 0,
-                    }}
-                  >
-                    <Icon name="arrow-right" size={14} />
-                  </button>
-                </div>
-              </div>
             </div>
+          )}
 
-            {/* Preview */}
-            <div className="pl-card" style={{ padding: 20, position: 'sticky', top: 24, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--fg-subtle)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  fontFamily: 'var(--font-mono)',
-                  marginBottom: 12,
-                }}
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              marginTop: 18,
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+            }}
+          >
+            {stage === 'processing' && (
+              <span
+                style={{ fontSize: 13, color: 'var(--fg-muted)' }}
+                aria-live="polite"
               >
-                {t('edit_preview')}
-              </div>
-              <EditPDFPreviewPage
-                tool={tool}
-                text={text}
-                color={activeColor}
-                strokeStyle={strokeStyle}
-                redactLabel={t('edit_redact_label')}
-              />
-              <div
-                style={{
-                  marginTop: 12,
-                  fontSize: 11,
-                  color: 'var(--fg-subtle)',
-                  fontFamily: 'var(--font-mono)',
-                  textAlign: 'center',
-                }}
+                {t('state_processing')}
+              </span>
+            )}
+            {stage === 'done' && result && (
+              <button
+                className="pl-btn pl-btn-primary pl-btn-lg"
+                onClick={downloadResult}
               >
-                {t('edit_preview_caption')}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <button className="pl-btn pl-btn-ghost pl-btn-lg">{t('start_over')}</button>
-            <button className="pl-btn pl-btn-primary pl-btn-lg">
-              <Icon name="edit" size={16} /> {t('edit_cta')}
+                <Icon name="download" size={16} />
+                {t('state_done')} — {(result.size / (1024 * 1024)).toFixed(1)} MB
+              </button>
+            )}
+            <button
+              className="pl-btn pl-btn-ghost pl-btn-lg"
+              onClick={startOver}
+              disabled={stage === 'uploading' || stage === 'processing'}
+            >
+              {t('start_over')}
             </button>
+            {stage !== 'done' && (
+              <button
+                className="pl-btn pl-btn-primary pl-btn-lg"
+                onClick={runEdit}
+                disabled={
+                  !file ||
+                  operations.length === 0 ||
+                  stage === 'uploading' ||
+                  stage === 'processing'
+                }
+              >
+                <Icon name="edit" size={16} /> {t('edit_apply') || 'Apply edits'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -383,259 +577,19 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
   );
 }
 
-// ── Per-mode tool-button glyphs ─────────────────────────────────
-
-function EditGlyphText() {
-  return (
-    <span
-      style={{
-        fontFamily: 'var(--font-display)',
-        fontWeight: 700,
-        fontSize: 14,
-        color: 'var(--fg)',
-        letterSpacing: '-0.02em',
-      }}
-    >
-      T
-    </span>
-  );
-}
-function EditGlyphHighlight() {
-  return <span style={{ display: 'inline-block', width: 16, height: 6, background: 'oklch(0.92 0.16 95)', borderRadius: 1 }} />;
-}
-function EditGlyphRedact() {
-  return <span style={{ display: 'inline-block', width: 16, height: 8, background: 'oklch(0.20 0 0)', borderRadius: 1 }} />;
-}
-function EditGlyphShape() {
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        width: 14,
-        height: 10,
-        border: '1.5px solid var(--fg)',
-        borderRadius: 2,
-        background: 'transparent',
-      }}
-    />
-  );
+function uploadErrorKey(e: unknown): string {
+  if (e instanceof TooLargeError) return 'error_upload_too_large';
+  if (e instanceof UnsupportedMediaTypeError) return 'error_upload_unsupported';
+  if (e instanceof BackendUnreachableError) return 'error_backend_unreachable';
+  return 'error_network';
 }
 
-// ── Preview ─────────────────────────────────────────────────────
-
-interface PreviewLine {
-  w: string;
-  h: number;
-  mt: number;
-  bold?: boolean;
-  dim?: boolean;
-}
-
-interface EditPDFPreviewPageProps {
-  tool: EditMode;
-  text: string;
-  color: EditColor;
-  strokeStyle: StrokeStyle;
-  redactLabel: string;
-}
-
-function EditPDFPreviewPage({ tool, text, color, strokeStyle, redactLabel }: EditPDFPreviewPageProps) {
-  const lines: PreviewLine[] = [
-    { w: '58%', h: 14, mt: 0,  bold: true },
-    { w: '34%', h: 8,  mt: 14, dim: true },
-    { w: '94%', h: 6,  mt: 22 },
-    { w: '88%', h: 6,  mt: 8 },
-    { w: '92%', h: 6,  mt: 8 },
-    { w: '70%', h: 6,  mt: 8 },
-    { w: '94%', h: 6,  mt: 16 },
-    { w: '86%', h: 6,  mt: 8 },
-    { w: '90%', h: 6,  mt: 8 },
-    { w: '44%', h: 6,  mt: 8 },
-  ];
-
-  const selectedRing = '0 0 0 2px white, 0 0 0 4px var(--accent)';
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        aspectRatio: '1 / 1.414',
-        background: 'white',
-        borderRadius: 6,
-        boxShadow: 'var(--shadow-md)',
-        border: '1px solid var(--line)',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Body */}
-      <div style={{ position: 'absolute', inset: '9% 9% 9% 9%' }}>
-        {lines.map((l, i) => (
-          <div
-            key={i}
-            style={{
-              width: l.w,
-              height: l.h,
-              marginTop: l.mt,
-              background: l.dim ? 'oklch(0.85 0 0)' : l.bold ? 'oklch(0.25 0 0)' : 'oklch(0.78 0 0)',
-              borderRadius: 2,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* 1) Highlight overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          left: '9%',
-          top: '32%',
-          width: '78%',
-          height: '2.4%',
-          background: tool === 'highlight' ? color.swatch : 'oklch(0.92 0.16 95)',
-          opacity: 0.55,
-          borderRadius: 2,
-          boxShadow: tool === 'highlight' ? selectedRing : 'none',
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* 2) Redaction block */}
-      <div
-        style={{
-          position: 'absolute',
-          left: '32%',
-          top: '44%',
-          width: '36%',
-          height: '3.2%',
-          background: 'oklch(0.10 0 0)',
-          borderRadius: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: tool === 'redact' ? selectedRing : 'none',
-        }}
-      >
-        <span
-          style={{
-            color: 'white',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'min(2.2cqw, 9px)',
-            fontWeight: 700,
-            letterSpacing: '0.16em',
-          }}
-        >
-          {redactLabel}
-        </span>
-      </div>
-
-      {/* 3) Text box overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          right: '9%',
-          top: '11%',
-          maxWidth: '44%',
-          padding: '4px 8px',
-          background: 'white',
-          border:
-            '1.5px ' +
-            (strokeStyle === 'outline' ? 'dashed ' : 'solid ') +
-            (tool === 'text' ? 'var(--accent)' : color.ink),
-          borderRadius: 4,
-          boxShadow: tool === 'text' ? '0 0 0 3px var(--accent-ring)' : 'var(--shadow-sm)',
-        }}
-      >
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 'min(2.6cqw, 11px)',
-            fontWeight: 600,
-            color: tool === 'text' ? color.ink : 'oklch(0.30 0.04 290)',
-            letterSpacing: '-0.01em',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            display: 'block',
-          }}
-        >
-          {text || ' '}
-        </span>
-      </div>
-
-      {/* 4) Shape rectangle */}
-      <div
-        style={{
-          position: 'absolute',
-          left: '12%',
-          bottom: '10%',
-          width: '42%',
-          height: '12%',
-          background: strokeStyle === 'solid' ? color.swatch : 'transparent',
-          opacity: strokeStyle === 'solid' ? 0.3 : 1,
-          border: '2px solid ' + color.ink,
-          borderRadius: 4,
-          boxShadow: tool === 'shape' ? selectedRing : 'none',
-        }}
-      />
-
-      {/* Drag handles for the selected element */}
-      <PreviewSelectionHandles tool={tool} />
-    </div>
-  );
-}
-
-// ── Selection handles ───────────────────────────────────────────
-
-interface BoxRect {
-  left?: string;
-  top?: string;
-  bottom?: string;
-  width: string;
-  height: string;
-}
-
-interface DragCorner {
-  id: 'tl' | 'tr' | 'bl' | 'br';
-  top?: number;
-  bottom?: number;
-  left?: number;
-  right?: number;
-}
-
-function PreviewSelectionHandles({ tool }: { tool: EditMode }) {
-  const boxes: Record<EditMode, BoxRect> = {
-    text:      { left: '47%',  top: '11%',    width: '44%',  height: '8%' },
-    highlight: { left: '9%',   top: '32%',    width: '78%',  height: '2.4%' },
-    redact:    { left: '32%',  top: '44%',    width: '36%',  height: '3.2%' },
-    shape:     { left: '12%',  bottom: '10%', width: '42%',  height: '12%' },
-  };
-  const b = boxes[tool];
-  const corners: DragCorner[] = [
-    { id: 'tl', top: -4, left: -4 },
-    { id: 'tr', top: -4, right: -4 },
-    { id: 'bl', bottom: -4, left: -4 },
-    { id: 'br', bottom: -4, right: -4 },
-  ];
-  return (
-    <div style={{ position: 'absolute', ...b, pointerEvents: 'none' }}>
-      {corners.map((c) => (
-        <span
-          key={c.id}
-          style={{
-            position: 'absolute',
-            width: 7,
-            height: 7,
-            borderRadius: 999,
-            background: 'var(--accent)',
-            boxShadow: '0 0 0 1.5px white',
-            top: c.top,
-            bottom: c.bottom,
-            left: c.left,
-            right: c.right,
-          }}
-        />
-      ))}
-    </div>
-  );
+function jobErrorKey(e: unknown): string {
+  if (e instanceof ValidationError) return 'error_invalid_ranges';
+  if (e instanceof JobFailedError) return 'error_job_failed';
+  if (e instanceof JobTimeoutError) return 'error_job_timeout';
+  if (e instanceof BackendUnreachableError) return 'error_backend_unreachable';
+  if (e instanceof NotFoundError) return 'error_file_expired';
+  if (e instanceof LunedocApiError && e.status === 410) return 'error_result_expired';
+  return 'error_job_failed';
 }

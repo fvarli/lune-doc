@@ -114,3 +114,54 @@ export type SignJobRequest = {
    */
   image_data?: string;
 };
+
+export type EditOpType = 'text_overlay' | 'highlight' | 'redact' | 'shape_rect';
+
+interface _EditBase {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+}
+
+export interface EditTextOverlay extends _EditBase {
+  type: 'text_overlay';
+  text: string;
+}
+
+export interface EditHighlight extends _EditBase {
+  type: 'highlight';
+  height: number;
+  /** Hex `#rrggbb`. Defaults to yellow server-side. */
+  color?: string;
+}
+
+export interface EditRedact extends _EditBase {
+  type: 'redact';
+  height: number;
+}
+
+export interface EditShapeRect extends _EditBase {
+  type: 'shape_rect';
+  height: number;
+  /** Hex `#rrggbb`. Defaults to blue server-side. */
+  color?: string;
+}
+
+export type EditOperation =
+  | EditTextOverlay
+  | EditHighlight
+  | EditRedact
+  | EditShapeRect;
+
+/**
+ * Body of POST /api/v1/jobs/edit.
+ *
+ * Edit is intentionally an overlay/redact editor. For redact ops the
+ * server applies true redaction (PyMuPDF `apply_redactions`) so the
+ * underlying text is removed from the PDF stream — not just covered.
+ */
+export type EditJobRequest = {
+  file_id: string;
+  operations: EditOperation[];
+};
