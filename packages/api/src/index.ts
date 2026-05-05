@@ -20,6 +20,8 @@ export {
   saveToken,
 } from './owner_token';
 export type {
+  CompressJobRequest,
+  CompressLevel,
   EditHighlight,
   EditJobRequest,
   EditOperation,

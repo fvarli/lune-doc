@@ -165,3 +165,11 @@ export type EditJobRequest = {
   file_id: string;
   operations: EditOperation[];
 };
+
+export type CompressLevel = 'low' | 'medium' | 'high';
+
+export type CompressJobRequest = {
+  file_id: string;
+  /** Defaults to 'medium' server-side. */
+  level?: CompressLevel;
+};
