@@ -8,7 +8,7 @@ Pydantic schemas (`MergeJobRequest`, `SplitJobRequest`, …).
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import DateTime, String
@@ -24,6 +24,7 @@ WatermarkPosition = Literal[
     "center", "top-left", "top-right", "bottom-left", "bottom-right"
 ]
 SignMode = Literal["text", "image"]
+EditOpType = Literal["text_overlay", "highlight", "redact", "shape_rect"]
 
 
 class Job(Base):
@@ -163,6 +164,69 @@ class SignJobRequest(BaseModel):
             if self.text:
                 raise ValueError("mode='image' must not include `text`")
         return self
+
+
+class _EditBase(BaseModel):
+    """Common fields for all Edit operations.
+
+    Coordinates are normalized to [0, 1] fractions of the target page's
+    width/height, origin top-left. width / height likewise normalized.
+    """
+
+    page: int = Field(..., ge=1)
+    x: float = Field(..., ge=0.0, le=1.0)
+    y: float = Field(..., ge=0.0, le=1.0)
+    width: float = Field(..., gt=0.0, le=1.0)
+
+
+class EditTextOverlay(_EditBase):
+    """Stamp visible text at the given rect."""
+
+    type: Literal["text_overlay"]
+    text: str = Field(..., min_length=1, max_length=500)
+
+
+class EditHighlight(_EditBase):
+    """Translucent colored rect on top of existing content."""
+
+    type: Literal["highlight"]
+    height: float = Field(..., gt=0.0, le=1.0)
+    # 6-digit hex color "#rrggbb" or 3-digit "#rgb"; None → default yellow.
+    color: str | None = Field(default=None)
+
+
+class EditRedact(_EditBase):
+    """True redaction — adds a redaction annotation, then `apply_redactions`
+    removes the underlying text and content from the PDF stream."""
+
+    type: Literal["redact"]
+    height: float = Field(..., gt=0.0, le=1.0)
+
+
+class EditShapeRect(_EditBase):
+    """Visible rectangle drawn on top of the page (no content removal)."""
+
+    type: Literal["shape_rect"]
+    height: float = Field(..., gt=0.0, le=1.0)
+    color: str | None = Field(default=None)
+
+
+# Discriminated union — pydantic picks the right subclass off `type`.
+EditOperation = Annotated[
+    Union[EditTextOverlay, EditHighlight, EditRedact, EditShapeRect],
+    Field(discriminator="type"),
+]
+
+
+class EditJobRequest(BaseModel):
+    """Body of POST /api/v1/jobs/edit.
+
+    Per docs/project-status.md D9: Edit is intentionally an
+    overlay/redact editor, not Acrobat-style content reflow.
+    """
+
+    file_id: str = Field(..., description="Uploaded PDF file_id")
+    operations: list[EditOperation] = Field(..., min_length=1)
 
 
 class JobStatusResponse(BaseModel):

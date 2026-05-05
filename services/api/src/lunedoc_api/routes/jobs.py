@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..models.file import File as FileRow
 from ..models.job import (
+    EditJobRequest,
     Job,
     JobResultResponse,
     JobStatusResponse,
@@ -376,8 +377,67 @@ async def create_sign_job(
     return _job_to_status(job)
 
 
+@router.post(
+    "/jobs/edit",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=JobStatusResponse,
+    summary=(
+        "Create an edit job (overlay / redact editing only — "
+        "NOT Acrobat-style content reflow)"
+    ),
+)
+async def create_edit_job(
+    body: EditJobRequest,
+    x_owner_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_session),
+) -> JobStatusResponse:
+    if not x_owner_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+    f = (
+        await db.execute(select(FileRow).where(FileRow.id == body.file_id))
+    ).scalar_one_or_none()
+    if f is None or not verify(x_owner_token, f.owner_token_hash):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    if f.mime != "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"file {body.file_id} is not a PDF",
+        )
+
+    job_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    # Operations serialize to plain dicts via model_dump; the engine
+    # accepts the discriminator + per-op fields by name.
+    params: dict = {
+        "operations": [op.model_dump() for op in body.operations],
+    }
+
+    job = Job(
+        id=job_id,
+        tool="edit",
+        status="queued",
+        input_file_ids=[body.file_id],
+        output_file_ids=[],
+        params=params,
+        error=None,
+        owner_token_hash=hash_token(x_owner_token),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    from ..workers.tasks.edit import run_edit_job
+
+    run_edit_job.delay(job_id)
+
+    await db.refresh(job)
+    return _job_to_status(job)
+
+
 # Tools that still 501 until they land.
-@router.post("/jobs/edit", summary="Create an edit job (Phase 1)")
 @router.post("/jobs/compress", summary="Create a compress job (Phase 2)")
 @router.post("/jobs/convert", summary="Create a convert job (Phase 2)")
 @router.post("/jobs/ocr", summary="Create an OCR job (Phase 3)")
