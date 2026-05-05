@@ -42,13 +42,14 @@ Install once on your machine:
 | Redis | 7 | Celery broker (host service — **no Docker**) |
 | `libmagic1` | — | MIME sniffing in the backend |
 | `ghostscript` | 10+ | PDF compression (`/jobs/compress`). Falls back to PyMuPDF if absent — modest reduction only. |
+| `libreoffice` | 24+ | Office round-trips for `/jobs/convert` (PDF↔DOCX/PPTX, DOCX→PDF). Image directions and PDF→JPG/PNG run on PyMuPDF and don't need it. |
 
 On Xubuntu / Ubuntu:
 
 ```bash
 # Node + pnpm: https://nodejs.org and https://pnpm.io
 curl -LsSf https://astral.sh/uv/install.sh | sh        # uv
-sudo apt install -y postgresql redis-server libmagic1 ghostscript
+sudo apt install -y postgresql redis-server libmagic1 ghostscript libreoffice
 ```
 
 ### One-time Postgres setup
