@@ -15,6 +15,7 @@ __pycache__/
 # Local-only file storage (uploads + results)
 .local-storage/
 tests/.test-storage/
+tests/_fixture_cache/
 
 # Editor / OS
 .vscode/

@@ -1,7 +1,10 @@
 from .file import Base, File, FileMetadata, UploadResponse
 from .job import (
+    ALLOWED_CONVERT_PAIRS,
     CompressJobRequest,
     CompressLevel,
+    ConvertFormat,
+    ConvertJobRequest,
     EditHighlight,
     EditJobRequest,
     EditOperation,
@@ -25,12 +28,15 @@ from .job import (
 )
 
 __all__ = [
+    "ALLOWED_CONVERT_PAIRS",
     "Base",
     "File",
     "FileMetadata",
     "UploadResponse",
     "CompressJobRequest",
     "CompressLevel",
+    "ConvertFormat",
+    "ConvertJobRequest",
     "EditHighlight",
     "EditJobRequest",
     "EditOperation",

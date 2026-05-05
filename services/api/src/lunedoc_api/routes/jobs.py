@@ -21,6 +21,7 @@ from ..db import get_session
 from ..models.file import File as FileRow
 from ..models.job import (
     CompressJobRequest,
+    ConvertJobRequest,
     EditJobRequest,
     Job,
     JobResultResponse,
@@ -489,8 +490,77 @@ async def create_compress_job(
     return _job_to_status(job)
 
 
+_FORMAT_TO_MIME: dict[str, str] = {
+    "PDF": "application/pdf",
+    "JPG": "image/jpeg",
+    "PNG": "image/png",
+    "DOCX": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "XLSX": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "PPTX": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+@router.post(
+    "/jobs/convert",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=JobStatusResponse,
+    summary="Create a convert job (PyMuPDF + LibreOffice)",
+)
+async def create_convert_job(
+    body: ConvertJobRequest,
+    x_owner_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_session),
+) -> JobStatusResponse:
+    if not x_owner_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+    f = (
+        await db.execute(select(FileRow).where(FileRow.id == body.file_id))
+    ).scalar_one_or_none()
+    if f is None or not verify(x_owner_token, f.owner_token_hash):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+    expected_mime = _FORMAT_TO_MIME[body.from_format]
+    if f.mime != expected_mime:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=(
+                f"file {body.file_id} mime {f.mime!r} does not match "
+                f"from_format={body.from_format} (expected {expected_mime})"
+            ),
+        )
+
+    job_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    job = Job(
+        id=job_id,
+        tool="convert",
+        status="queued",
+        input_file_ids=[body.file_id],
+        output_file_ids=[],
+        params={
+            "from_format": body.from_format,
+            "to_format": body.to_format,
+            "image_dpi": body.image_dpi,
+        },
+        error=None,
+        owner_token_hash=hash_token(x_owner_token),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    from ..workers.tasks.convert import run_convert_job
+
+    run_convert_job.delay(job_id)
+
+    await db.refresh(job)
+    return _job_to_status(job)
+
+
 # Tools that still 501 until they land.
-@router.post("/jobs/convert", summary="Create a convert job (Phase 2)")
 @router.post("/jobs/ocr", summary="Create an OCR job (Phase 3)")
 async def _other_tools_not_implemented() -> None:
     raise HTTPException(

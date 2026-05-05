@@ -26,6 +26,26 @@ WatermarkPosition = Literal[
 SignMode = Literal["text", "image"]
 EditOpType = Literal["text_overlay", "highlight", "redact", "shape_rect"]
 CompressLevel = Literal["low", "medium", "high"]
+ConvertFormat = Literal["PDF", "JPG", "PNG", "DOCX", "XLSX", "PPTX"]
+
+# 7 allowed (from, to) pairs. Module-level so tests can import + verify.
+# Note: PDF → XLSX is not in the allowed set. LibreOffice 24 does not
+# ship a working PDF-to-spreadsheet filter chain on Linux (calc_pdf_import
+# loads the PDF as a Draw document, which cannot export to .xlsx). The
+# marketing copy already warned this conversion is "very lossy"; making
+# it explicitly unsupported is the more honest answer than producing a
+# broken file. See the route's 422 response for the full list.
+ALLOWED_CONVERT_PAIRS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("PDF", "JPG"),
+        ("PDF", "PNG"),
+        ("PDF", "DOCX"),
+        ("PDF", "PPTX"),
+        ("JPG", "PDF"),
+        ("PNG", "PDF"),
+        ("DOCX", "PDF"),
+    }
+)
 
 
 class Job(Base):
@@ -245,6 +265,51 @@ class CompressJobRequest(BaseModel):
 
     file_id: str = Field(..., description="Uploaded PDF file_id")
     level: CompressLevel = Field(default="medium")
+
+
+class ConvertJobRequest(BaseModel):
+    """Body of POST /api/v1/jobs/convert.
+
+    8 allowed (from, to) pairs:
+      PDF → JPG, PNG (per-page output, multi-file)
+      PDF → DOCX, XLSX, PPTX (LibreOffice — lossy)
+      JPG, PNG → PDF (lossless)
+      DOCX → PDF (LibreOffice — high fidelity)
+
+    Any other pair returns 422 with the allowed list.
+
+    `ocr=true` is reserved for Phase 3 OCR; the route returns 422
+    today. The frontend keeps the toggle visible-but-disabled.
+    """
+
+    file_id: str = Field(..., description="Uploaded file_id")
+    from_format: ConvertFormat = Field(..., description="Source format")
+    to_format: ConvertFormat = Field(..., description="Target format")
+    ocr: bool = Field(
+        default=False,
+        description="Run OCR on image-only PDFs. Phase 3 — currently rejected.",
+    )
+    image_dpi: int = Field(
+        default=150,
+        ge=72,
+        le=600,
+        description="DPI for PDF→JPG/PNG (ignored for other directions).",
+    )
+
+    @model_validator(mode="after")
+    def _validate_pair(self) -> "ConvertJobRequest":
+        pair = (self.from_format, self.to_format)
+        if pair not in ALLOWED_CONVERT_PAIRS:
+            allowed = sorted(f"{a}->{b}" for a, b in ALLOWED_CONVERT_PAIRS)
+            raise ValueError(
+                f"unsupported pair {self.from_format}->{self.to_format}; "
+                f"allowed: {allowed}"
+            )
+        if self.ocr:
+            raise ValueError(
+                "ocr is reserved for Phase 3 — not yet supported on /jobs/convert"
+            )
+        return self
 
 
 class JobStatusResponse(BaseModel):
