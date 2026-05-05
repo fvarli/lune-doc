@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..models.file import File as FileRow
 from ..models.job import (
+    CompressJobRequest,
     EditJobRequest,
     Job,
     JobResultResponse,
@@ -437,8 +438,58 @@ async def create_edit_job(
     return _job_to_status(job)
 
 
+@router.post(
+    "/jobs/compress",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=JobStatusResponse,
+    summary="Create a compress job (Ghostscript with PyMuPDF fallback)",
+)
+async def create_compress_job(
+    body: CompressJobRequest,
+    x_owner_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_session),
+) -> JobStatusResponse:
+    if not x_owner_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+    f = (
+        await db.execute(select(FileRow).where(FileRow.id == body.file_id))
+    ).scalar_one_or_none()
+    if f is None or not verify(x_owner_token, f.owner_token_hash):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    if f.mime != "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"file {body.file_id} is not a PDF",
+        )
+
+    job_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    job = Job(
+        id=job_id,
+        tool="compress",
+        status="queued",
+        input_file_ids=[body.file_id],
+        output_file_ids=[],
+        params={"level": body.level},
+        error=None,
+        owner_token_hash=hash_token(x_owner_token),
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    from ..workers.tasks.compress import run_compress_job
+
+    run_compress_job.delay(job_id)
+
+    await db.refresh(job)
+    return _job_to_status(job)
+
+
 # Tools that still 501 until they land.
-@router.post("/jobs/compress", summary="Create a compress job (Phase 2)")
 @router.post("/jobs/convert", summary="Create a convert job (Phase 2)")
 @router.post("/jobs/ocr", summary="Create an OCR job (Phase 3)")
 async def _other_tools_not_implemented() -> None:

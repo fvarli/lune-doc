@@ -25,6 +25,7 @@ WatermarkPosition = Literal[
 ]
 SignMode = Literal["text", "image"]
 EditOpType = Literal["text_overlay", "highlight", "redact", "shape_rect"]
+CompressLevel = Literal["low", "medium", "high"]
 
 
 class Job(Base):
@@ -227,6 +228,23 @@ class EditJobRequest(BaseModel):
 
     file_id: str = Field(..., description="Uploaded PDF file_id")
     operations: list[EditOperation] = Field(..., min_length=1)
+
+
+class CompressJobRequest(BaseModel):
+    """Body of POST /api/v1/jobs/compress.
+
+    `level` maps to Ghostscript's PDFSETTINGS preset:
+      low    -> /screen   (~72 dpi images, smallest output)
+      medium -> /ebook    (~150 dpi, balanced — default)
+      high   -> /printer  (~300 dpi, near-original)
+
+    If Ghostscript isn't installed, the engine falls back to PyMuPDF's
+    deflate-based save (typically 0–15% reduction). The response's
+    `result_meta` carries which engine actually ran.
+    """
+
+    file_id: str = Field(..., description="Uploaded PDF file_id")
+    level: CompressLevel = Field(default="medium")
 
 
 class JobStatusResponse(BaseModel):

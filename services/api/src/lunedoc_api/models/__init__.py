@@ -1,5 +1,7 @@
 from .file import Base, File, FileMetadata, UploadResponse
 from .job import (
+    CompressJobRequest,
+    CompressLevel,
     EditHighlight,
     EditJobRequest,
     EditOperation,
@@ -27,6 +29,8 @@ __all__ = [
     "File",
     "FileMetadata",
     "UploadResponse",
+    "CompressJobRequest",
+    "CompressLevel",
     "EditHighlight",
     "EditJobRequest",
     "EditOperation",
