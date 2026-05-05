@@ -84,3 +84,33 @@ export type WatermarkJobRequest = {
   /** Degrees, -180 to 180; defaults to -30 server-side. */
   rotation?: number;
 };
+
+export type SignMode = 'text' | 'image';
+
+/**
+ * Body of POST /api/v1/jobs/sign.
+ *
+ * VISIBLE signature only — NOT a cryptographic e-signature. Coordinates
+ * are normalized to [0, 1] fractions of the target page's dimensions
+ * (origin top-left). Width is also normalized; height is derived from
+ * the image's aspect ratio (image mode) or font metrics (text mode).
+ */
+export type SignJobRequest = {
+  file_id: string;
+  mode: SignMode;
+  /** 1-indexed page number. */
+  page: number;
+  /** Normalized left edge, 0–1. */
+  x: number;
+  /** Normalized top edge, 0–1. */
+  y: number;
+  /** Normalized width, (0, 1]. */
+  width: number;
+  /** Required when mode='text'. Max 200 chars. */
+  text?: string;
+  /**
+   * Required when mode='image'. Base64-encoded PNG or JPEG, optionally
+   * prefixed with `data:image/png;base64,`. Capped at ~2 MB encoded.
+   */
+  image_data?: string;
+};

@@ -26,6 +26,8 @@ export type {
   JobStatusResponse,
   JobTool,
   ResultFile,
+  SignJobRequest,
+  SignMode,
   SplitJobRequest,
   SplitMode,
   UploadedFile,

@@ -15,6 +15,7 @@ import {
 import type {
   JobResultResponse,
   JobStatusResponse,
+  SignJobRequest,
   SplitJobRequest,
   UploadedFile,
   WatermarkJobRequest,
@@ -137,6 +138,21 @@ export class LunedocClient {
     token: string,
   ): Promise<JobStatusResponse> {
     const resp = await this.request('/jobs/watermark', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Owner-Token': token,
+      },
+      body: JSON.stringify(req),
+    });
+    return (await resp.json()) as JobStatusResponse;
+  }
+
+  async createSignJob(
+    req: SignJobRequest,
+    token: string,
+  ): Promise<JobStatusResponse> {
+    const resp = await this.request('/jobs/sign', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
