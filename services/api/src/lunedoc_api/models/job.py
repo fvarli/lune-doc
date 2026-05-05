@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -23,6 +23,7 @@ SplitMode = Literal["ranges", "per_page"]
 WatermarkPosition = Literal[
     "center", "top-left", "top-right", "bottom-left", "bottom-right"
 ]
+SignMode = Literal["text", "image"]
 
 
 class Job(Base):
@@ -103,6 +104,65 @@ class WatermarkJobRequest(BaseModel):
         le=180.0,
         description="Degrees, default -30 (diagonal up-left for center)",
     )
+
+
+class SignJobRequest(BaseModel):
+    """Body of POST /api/v1/jobs/sign.
+
+    Stamps a **visible** signature on a single page. This is NOT a
+    cryptographic e-signature — it's a typed-or-image overlay with no
+    legal binding. Per docs/seo-tool-page-template.md honesty clauses.
+
+    Coordinates are normalized to [0, 1] fractions of the target page's
+    width/height. Origin is the top-left corner. The engine multiplies
+    by the page dimensions before stamping. width is also normalized;
+    height is derived from the source image's aspect ratio (mode=image)
+    or font metrics (mode=text).
+    """
+
+    file_id: str = Field(..., description="Uploaded PDF file_id")
+    mode: SignMode = Field(..., description="text | image")
+    page: int = Field(..., ge=1, description="1-indexed page number")
+    x: float = Field(..., ge=0.0, le=1.0, description="Normalized left, 0–1")
+    y: float = Field(..., ge=0.0, le=1.0, description="Normalized top, 0–1")
+    width: float = Field(..., gt=0.0, le=1.0, description="Normalized width, (0, 1]")
+    text: str | None = Field(
+        default=None,
+        max_length=200,
+        description="Required when mode='text'",
+    )
+    image_data: str | None = Field(
+        default=None,
+        max_length=2_000_000,
+        description=(
+            "Required when mode='image'. Base64-encoded PNG or JPEG, "
+            "with or without the 'data:image/png;base64,' prefix. "
+            "Capped at ~2 MB encoded (~1.5 MB raw)."
+        ),
+    )
+
+    @field_validator("text")
+    @classmethod
+    def _text_for_text_mode(cls, v: str | None) -> str | None:
+        # Validation that depends on `mode` lives in model_validator below;
+        # this just enforces non-empty when present.
+        if v is not None and not v.strip():
+            raise ValueError("text must not be empty")
+        return v
+
+    @model_validator(mode="after")
+    def _check_mode_payload(self) -> "SignJobRequest":
+        if self.mode == "text":
+            if not self.text:
+                raise ValueError("mode='text' requires non-empty `text`")
+            if self.image_data:
+                raise ValueError("mode='text' must not include `image_data`")
+        else:  # image
+            if not self.image_data:
+                raise ValueError("mode='image' requires non-empty `image_data`")
+            if self.text:
+                raise ValueError("mode='image' must not include `text`")
+        return self
 
 
 class JobStatusResponse(BaseModel):
