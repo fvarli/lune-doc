@@ -17,6 +17,7 @@ import type {
   JobStatusResponse,
   SplitJobRequest,
   UploadedFile,
+  WatermarkJobRequest,
 } from './types';
 
 function resolveApiBase(): string {
@@ -121,6 +122,21 @@ export class LunedocClient {
     token: string,
   ): Promise<JobStatusResponse> {
     const resp = await this.request('/jobs/split', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Owner-Token': token,
+      },
+      body: JSON.stringify(req),
+    });
+    return (await resp.json()) as JobStatusResponse;
+  }
+
+  async createWatermarkJob(
+    req: WatermarkJobRequest,
+    token: string,
+  ): Promise<JobStatusResponse> {
+    const resp = await this.request('/jobs/watermark', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

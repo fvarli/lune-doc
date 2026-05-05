@@ -67,3 +67,20 @@ export type SplitJobRequest = {
   mode: SplitMode;
   ranges?: number[][];
 };
+
+export type WatermarkPosition =
+  | 'center'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right';
+
+export type WatermarkJobRequest = {
+  file_id: string;
+  text: string;
+  position?: WatermarkPosition;
+  /** 0.1 to 1.0; defaults to 0.3 server-side. */
+  opacity?: number;
+  /** Degrees, -180 to 180; defaults to -30 server-side. */
+  rotation?: number;
+};

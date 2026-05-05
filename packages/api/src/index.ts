@@ -29,4 +29,6 @@ export type {
   SplitJobRequest,
   SplitMode,
   UploadedFile,
+  WatermarkJobRequest,
+  WatermarkPosition,
 } from './types';
