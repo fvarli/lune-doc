@@ -1,6 +1,7 @@
 from .file import Base, File, FileMetadata, UploadResponse
 from .job import (
     ALLOWED_CONVERT_PAIRS,
+    OCR_FREE_PAGE_CAP,
     CompressJobRequest,
     CompressLevel,
     ConvertFormat,
@@ -18,6 +19,9 @@ from .job import (
     JobStatusResponse,
     JobTool,
     MergeJobRequest,
+    OcrJobRequest,
+    OcrLang,
+    OcrMode,
     ResultFile,
     SignJobRequest,
     SignMode,
@@ -29,6 +33,7 @@ from .job import (
 
 __all__ = [
     "ALLOWED_CONVERT_PAIRS",
+    "OCR_FREE_PAGE_CAP",
     "Base",
     "File",
     "FileMetadata",
@@ -50,6 +55,9 @@ __all__ = [
     "JobStatusResponse",
     "JobTool",
     "MergeJobRequest",
+    "OcrJobRequest",
+    "OcrLang",
+    "OcrMode",
     "ResultFile",
     "SignJobRequest",
     "SignMode",

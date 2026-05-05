@@ -30,6 +30,7 @@ celery_app = Celery(
         "lunedoc_api.workers.tasks.edit",
         "lunedoc_api.workers.tasks.compress",
         "lunedoc_api.workers.tasks.convert",
+        "lunedoc_api.workers.tasks.ocr",
     ],
 )
 

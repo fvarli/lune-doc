@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import get_session
 from ..models.file import File as FileRow
 from ..models.job import (
+    OCR_FREE_PAGE_CAP,
     CompressJobRequest,
     ConvertJobRequest,
     EditJobRequest,
@@ -27,12 +28,14 @@ from ..models.job import (
     JobResultResponse,
     JobStatusResponse,
     MergeJobRequest,
+    OcrJobRequest,
     ResultFile,
     SignJobRequest,
     SplitJobRequest,
     WatermarkJobRequest,
 )
 from ..owner_token import hash_token, verify
+from ..storage import get_storage
 
 router = APIRouter()
 
@@ -560,10 +563,80 @@ async def create_convert_job(
     return _job_to_status(job)
 
 
-# Tools that still 501 until they land.
-@router.post("/jobs/ocr", summary="Create an OCR job (Phase 3)")
-async def _other_tools_not_implemented() -> None:
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="tool endpoint not yet implemented",
+@router.post(
+    "/jobs/ocr",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=JobStatusResponse,
+    summary="Create an OCR job (Tesseract — extract or searchable PDF)",
+)
+async def create_ocr_job(
+    body: OcrJobRequest,
+    x_owner_token: str | None = Header(default=None),
+    db: AsyncSession = Depends(get_session),
+) -> JobStatusResponse:
+    if not x_owner_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+
+    f = (
+        await db.execute(select(FileRow).where(FileRow.id == body.file_id))
+    ).scalar_one_or_none()
+    if f is None or not verify(x_owner_token, f.owner_token_hash):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    if f.mime != "application/pdf":
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"file {body.file_id} is not a PDF",
+        )
+
+    # Page-cap fast-fail at the route layer. Opening the PDF is fast
+    # (~1 ms typical); the alternative is enqueueing a job that the
+    # engine would reject anyway.
+    import pymupdf  # local import keeps the route module light
+
+    storage = get_storage()
+    input_path = storage._path_for(f.storage_key)
+    try:
+        probe = pymupdf.open(input_path)
+        try:
+            page_count = probe.page_count
+        finally:
+            probe.close()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"file {body.file_id} could not be opened as a PDF",
+        )
+
+    if page_count > OCR_FREE_PAGE_CAP:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"OCR free tier capped at {OCR_FREE_PAGE_CAP} pages; "
+                f"this PDF has {page_count}"
+            ),
+        )
+
+    job_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    job = Job(
+        id=job_id,
+        tool="ocr",
+        status="queued",
+        input_file_ids=[body.file_id],
+        output_file_ids=[],
+        params={"mode": body.mode, "lang": body.lang},
+        error=None,
+        owner_token_hash=hash_token(x_owner_token),
+        created_at=now,
+        updated_at=now,
     )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    from ..workers.tasks.ocr import run_ocr_job
+
+    run_ocr_job.delay(job_id)
+
+    await db.refresh(job)
+    return _job_to_status(job)

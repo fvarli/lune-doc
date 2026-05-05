@@ -26,6 +26,12 @@ WatermarkPosition = Literal[
 SignMode = Literal["text", "image"]
 EditOpType = Literal["text_overlay", "highlight", "redact", "shape_rect"]
 CompressLevel = Literal["low", "medium", "high"]
+OcrMode = Literal["extract", "searchable"]
+OcrLang = Literal["eng", "tur", "spa"]
+
+# Free-tier page cap for OCR jobs. Lives at module level so the route
+# can validate before dispatch and tests can import it directly.
+OCR_FREE_PAGE_CAP = 20
 ConvertFormat = Literal["PDF", "JPG", "PNG", "DOCX", "XLSX", "PPTX"]
 
 # 7 allowed (from, to) pairs. Module-level so tests can import + verify.
@@ -310,6 +316,26 @@ class ConvertJobRequest(BaseModel):
                 "ocr is reserved for Phase 3 — not yet supported on /jobs/convert"
             )
         return self
+
+
+class OcrJobRequest(BaseModel):
+    """Body of POST /api/v1/jobs/ocr.
+
+    Two modes:
+      extract     — write a plain .txt of the recognized text
+                    (one form-feed between pages).
+      searchable  — write a PDF with the original raster + an
+                    invisible OCR text layer so Ctrl+F works.
+
+    `lang` takes Tesseract codes (eng/tur/spa). The frontend's
+    `auto`/`en`/`tr`/`es` UI values are mapped client-side. Free
+    tier is capped at OCR_FREE_PAGE_CAP pages — the route returns
+    422 if the input PDF exceeds it.
+    """
+
+    file_id: str = Field(..., description="Uploaded PDF file_id")
+    mode: OcrMode = Field(..., description="extract | searchable")
+    lang: OcrLang = Field(..., description="Tesseract language code")
 
 
 class JobStatusResponse(BaseModel):
