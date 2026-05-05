@@ -173,3 +173,33 @@ export type CompressJobRequest = {
   /** Defaults to 'medium' server-side. */
   level?: CompressLevel;
 };
+
+export type ConvertFormat = 'PDF' | 'JPG' | 'PNG' | 'DOCX' | 'XLSX' | 'PPTX';
+
+/**
+ * Allowed (from, to) pairs accepted by POST /api/v1/jobs/convert.
+ * Anything else returns 422 with this list in the error body.
+ *
+ * Note: PDF → XLSX is **not** in the set. The host LibreOffice
+ * release ships no working PDF-to-spreadsheet filter chain on Linux;
+ * we reject it explicitly rather than producing a broken file.
+ */
+export const ALLOWED_CONVERT_PAIRS: ReadonlyArray<readonly [ConvertFormat, ConvertFormat]> = [
+  ['PDF', 'JPG'],
+  ['PDF', 'PNG'],
+  ['PDF', 'DOCX'],
+  ['PDF', 'PPTX'],
+  ['JPG', 'PDF'],
+  ['PNG', 'PDF'],
+  ['DOCX', 'PDF'],
+] as const;
+
+export type ConvertJobRequest = {
+  file_id: string;
+  from_format: ConvertFormat;
+  to_format: ConvertFormat;
+  /** Reserved for Phase 3 OCR. Must be false today; route returns 422 otherwise. */
+  ocr?: boolean;
+  /** PDF→JPG/PNG only; ignored for other directions. Defaults to 150. */
+  image_dpi?: number;
+};

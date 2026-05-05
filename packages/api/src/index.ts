@@ -19,9 +19,12 @@ export {
   rememberFile,
   saveToken,
 } from './owner_token';
+export { ALLOWED_CONVERT_PAIRS } from './types';
 export type {
   CompressJobRequest,
   CompressLevel,
+  ConvertFormat,
+  ConvertJobRequest,
   EditHighlight,
   EditJobRequest,
   EditOperation,

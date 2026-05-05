@@ -14,6 +14,7 @@ import {
 } from './errors';
 import type {
   CompressJobRequest,
+  ConvertJobRequest,
   EditJobRequest,
   JobResultResponse,
   JobStatusResponse,
@@ -185,6 +186,21 @@ export class LunedocClient {
     token: string,
   ): Promise<JobStatusResponse> {
     const resp = await this.request('/jobs/compress', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Owner-Token': token,
+      },
+      body: JSON.stringify(req),
+    });
+    return (await resp.json()) as JobStatusResponse;
+  }
+
+  async createConvertJob(
+    req: ConvertJobRequest,
+    token: string,
+  ): Promise<JobStatusResponse> {
+    const resp = await this.request('/jobs/convert', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
