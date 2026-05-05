@@ -41,13 +41,14 @@ Install once on your machine:
 | PostgreSQL | 16 | Backend database (host service — **no Docker**) |
 | Redis | 7 | Celery broker (host service — **no Docker**) |
 | `libmagic1` | — | MIME sniffing in the backend |
+| `ghostscript` | 10+ | PDF compression (`/jobs/compress`). Falls back to PyMuPDF if absent — modest reduction only. |
 
 On Xubuntu / Ubuntu:
 
 ```bash
 # Node + pnpm: https://nodejs.org and https://pnpm.io
 curl -LsSf https://astral.sh/uv/install.sh | sh        # uv
-sudo apt install -y postgresql redis-server libmagic1
+sudo apt install -y postgresql redis-server libmagic1 ghostscript
 ```
 
 ### One-time Postgres setup
