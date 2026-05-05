@@ -19,7 +19,7 @@ export {
   rememberFile,
   saveToken,
 } from './owner_token';
-export { ALLOWED_CONVERT_PAIRS } from './types';
+export { ALLOWED_CONVERT_PAIRS, OCR_FREE_PAGE_CAP } from './types';
 export type {
   CompressJobRequest,
   CompressLevel,
@@ -37,6 +37,9 @@ export type {
   JobStatus,
   JobStatusResponse,
   JobTool,
+  OcrJobRequest,
+  OcrLang,
+  OcrMode,
   ResultFile,
   SignJobRequest,
   SignMode,

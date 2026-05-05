@@ -203,3 +203,22 @@ export type ConvertJobRequest = {
   /** PDF→JPG/PNG only; ignored for other directions. Defaults to 150. */
   image_dpi?: number;
 };
+
+export type OcrMode = 'extract' | 'searchable';
+
+/**
+ * Tesseract language codes — NOT the en/tr/es shorthand the rest of
+ * the system uses. Map en→eng, tr→tur, es→spa client-side before
+ * sending. The frontend's `auto` UI value resolves to one of these
+ * based on the current Lang prop.
+ */
+export type OcrLang = 'eng' | 'tur' | 'spa';
+
+export type OcrJobRequest = {
+  file_id: string;
+  mode: OcrMode;
+  lang: OcrLang;
+};
+
+/** Free-tier OCR page cap — keep in sync with backend OCR_FREE_PAGE_CAP. */
+export const OCR_FREE_PAGE_CAP = 20;

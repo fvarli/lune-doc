@@ -18,6 +18,7 @@ import type {
   EditJobRequest,
   JobResultResponse,
   JobStatusResponse,
+  OcrJobRequest,
   SignJobRequest,
   SplitJobRequest,
   UploadedFile,
@@ -201,6 +202,21 @@ export class LunedocClient {
     token: string,
   ): Promise<JobStatusResponse> {
     const resp = await this.request('/jobs/convert', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Owner-Token': token,
+      },
+      body: JSON.stringify(req),
+    });
+    return (await resp.json()) as JobStatusResponse;
+  }
+
+  async createOcrJob(
+    req: OcrJobRequest,
+    token: string,
+  ): Promise<JobStatusResponse> {
+    const resp = await this.request('/jobs/ocr', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -344,5 +344,6 @@
   "error_job_failed": "Processing failed. Please try again or use a different file.",
   "error_result_expired": "The result has expired. Please run the tool again.",
   "error_job_timeout": "Processing is taking longer than expected. You can try again.",
-  "error_invalid_ranges": "Page ranges are invalid. Use 1-indexed numbers within the document."
+  "error_invalid_ranges": "Page ranges are invalid. Use 1-indexed numbers within the document.",
+  "error_ocr_page_cap": "OCR is capped at 20 pages on the free tier."
 }

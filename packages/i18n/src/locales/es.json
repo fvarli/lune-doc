@@ -344,5 +344,6 @@
   "error_job_failed": "El procesamiento ha fallado. Inténtalo de nuevo o usa otro archivo.",
   "error_result_expired": "El resultado ha caducado. Vuelve a ejecutar la herramienta.",
   "error_job_timeout": "El procesamiento está tardando más de lo esperado. Puedes intentarlo de nuevo.",
-  "error_invalid_ranges": "Los rangos de página no son válidos. Usa números desde 1 dentro del documento."
+  "error_invalid_ranges": "Los rangos de página no son válidos. Usa números desde 1 dentro del documento.",
+  "error_ocr_page_cap": "El OCR está limitado a 20 páginas en el plan gratuito."
 }

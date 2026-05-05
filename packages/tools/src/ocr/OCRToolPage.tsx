@@ -1,59 +1,193 @@
 import { useState } from 'react';
+import {
+  BackendUnreachableError,
+  JobFailedError,
+  JobTimeoutError,
+  LunedocApiError,
+  NotFoundError,
+  TooLargeError,
+  UnsupportedMediaTypeError,
+  ValidationError,
+  forgetToken,
+  getClient,
+  rememberFile,
+  saveToken,
+  type OcrJobRequest,
+  type OcrLang,
+  type OcrMode,
+  type UploadedFile,
+} from '@lunedoc/api';
 import { useI18n, type Lang } from '@lunedoc/i18n';
-import { Icon, PdfThumb, type IconName } from '@lunedoc/ui';
+import { DropZone, Icon } from '@lunedoc/ui';
 
-type OcrLang = 'auto' | 'en' | 'tr' | 'es';
-type SampleLang = 'en' | 'tr' | 'es';
-type OcrMode = 'extract' | 'searchable';
+const MAX_BYTES = 50 * 1024 * 1024;
 
-interface OcrLangOption {
-  id: OcrLang;
-  label: string;
-  code: string;
-}
+type UiLang = 'auto' | 'en' | 'tr' | 'es';
+type Stage = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
-interface OcrModeOption {
-  id: OcrMode;
-  label: string;
-  hint: string;
-  icon: IconName;
-}
-
-interface SampleInvoice {
-  title: string;
-  meta: string;
-  body: string[];
+interface OcrResultMeta {
+  file_id: string;
+  name: string;
+  size: number;
+  mime: string;
+  preview?: string;
 }
 
 interface OCRToolPageProps {
   lang: Lang;
 }
 
+const UI_TO_TESSERACT: Record<Exclude<UiLang, 'auto'>, OcrLang> = {
+  en: 'eng',
+  tr: 'tur',
+  es: 'spa',
+};
+
+function resolveLang(uiLang: UiLang, ambient: Lang): OcrLang {
+  if (uiLang === 'auto') {
+    return UI_TO_TESSERACT[ambient];
+  }
+  return UI_TO_TESSERACT[uiLang];
+}
+
 export function OCRToolPage({ lang }: OCRToolPageProps) {
   const { t } = useI18n(lang);
-  const [ocrLang, setOcrLang] = useState<OcrLang>('auto');
+  const [file, setFile] = useState<UploadedFile | null>(null);
+  const [uiLang, setUiLang] = useState<UiLang>('auto');
   const [mode, setMode] = useState<OcrMode>('extract');
+  const [stage, setStage] = useState<Stage>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<OcrResultMeta | null>(null);
 
-  const langs: OcrLangOption[] = [
-    { id: 'auto', label: t('ocr_lang_auto'), code: 'AUTO' },
-    { id: 'en',   label: t('ocr_lang_en'),   code: 'EN' },
-    { id: 'tr',   label: t('ocr_lang_tr'),   code: 'TR' },
-    { id: 'es',   label: t('ocr_lang_es'),   code: 'ES' },
+  async function handleFiles(picked: File[]) {
+    const raw = picked[0];
+    if (!raw) return;
+    setError(null);
+    setStage('uploading');
+    try {
+      const uploaded = await getClient().uploadFile(raw);
+      saveToken(uploaded.file_id, uploaded.owner_token);
+      rememberFile({
+        file_id: uploaded.file_id,
+        name: uploaded.name,
+        mime: uploaded.mime,
+        size: uploaded.size,
+        expires_at: uploaded.expires_at,
+      });
+      setFile(uploaded);
+      setStage('idle');
+    } catch (e) {
+      setError(uploadErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  function handleReject(rejected: File[]) {
+    if (rejected.length > 0) {
+      setError('error_upload_too_large');
+      setStage('error');
+    }
+  }
+
+  async function runOcr() {
+    if (!file) return;
+    setError(null);
+    setStage('processing');
+    const client = getClient();
+    const token = file.owner_token;
+
+    const body: OcrJobRequest = {
+      file_id: file.file_id,
+      mode,
+      lang: resolveLang(uiLang, lang),
+    };
+
+    try {
+      const job = await client.createOcrJob(body, token);
+      const done = await client.pollJob(job.job_id, token);
+      const r = await client.getJobResult(done.job_id, token);
+      const out = r.outputs[0];
+      if (!out) throw new Error('ocr produced no output');
+      saveToken(out.file_id, token);
+
+      let preview: string | undefined;
+      if (mode === 'extract') {
+        try {
+          const blob = await client.downloadFile(out.file_id, token);
+          const text = await blob.text();
+          preview = text.slice(0, 1000);
+        } catch {
+          preview = undefined;
+        }
+      }
+
+      setResult({
+        file_id: out.file_id,
+        name: out.name,
+        size: out.size,
+        mime: out.mime,
+        preview,
+      });
+      setStage('done');
+    } catch (e) {
+      setError(jobErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  async function downloadResult() {
+    if (!result || !file) return;
+    try {
+      const blob = await getClient().downloadFile(result.file_id, file.owner_token);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(jobErrorKey(e));
+      setStage('error');
+    }
+  }
+
+  function startOver() {
+    if (file) forgetToken(file.file_id);
+    if (result) forgetToken(result.file_id);
+    setFile(null);
+    setResult(null);
+    setError(null);
+    setUiLang('auto');
+    setMode('extract');
+    setStage('idle');
+  }
+
+  const langOptions: { id: UiLang; label: string }[] = [
+    { id: 'auto', label: t('ocr_lang_auto') },
+    { id: 'en', label: t('ocr_lang_en') },
+    { id: 'tr', label: t('ocr_lang_tr') },
+    { id: 'es', label: t('ocr_lang_es') },
   ];
 
-  const modes: OcrModeOption[] = [
-    { id: 'extract',    label: t('ocr_mode_extract'),    hint: t('ocr_mode_extract_hint'),    icon: 'doc' },
-    { id: 'searchable', label: t('ocr_mode_searchable'), hint: t('ocr_mode_searchable_hint'), icon: 'search' },
+  const modeOptions: { id: OcrMode; label: string; hint: string }[] = [
+    {
+      id: 'extract',
+      label: t('ocr_mode_extract'),
+      hint: t('ocr_mode_extract_hint'),
+    },
+    {
+      id: 'searchable',
+      label: t('ocr_mode_searchable'),
+      hint: t('ocr_mode_searchable_hint'),
+    },
   ];
-
-  // Effective sample language: when auto, mirror the UI locale.
-  const sampleLang: SampleLang =
-    ocrLang === 'auto' ? (lang === 'tr' || lang === 'es' ? lang : 'en') : ocrLang;
 
   return (
     <div style={{ background: 'var(--bg-muted)', minHeight: '100%' }}>
       <div style={{ padding: '32px 28px 64px' }}>
-        <div style={{ maxWidth: 1080, margin: '0 auto' }}>
+        <div style={{ maxWidth: 920, margin: '0 auto' }}>
           <a
             href="/"
             style={{
@@ -69,7 +203,14 @@ export function OCRToolPage({ lang }: OCRToolPageProps) {
             <Icon name="arrow-left" size={14} />
             {t('tool_back')}
           </a>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 24 }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 14,
+              alignItems: 'flex-start',
+              marginBottom: 24,
+            }}
+          >
             <div
               style={{
                 width: 48,
@@ -85,481 +226,313 @@ export function OCRToolPage({ lang }: OCRToolPageProps) {
               <Icon name="ocr" size={22} />
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <h1 style={{ fontSize: 32, fontWeight: 600, letterSpacing: '-0.02em' }}>{t('ocr_title')}</h1>
-              <p style={{ marginTop: 4, fontSize: 15, color: 'var(--fg-muted)' }}>{t('ocr_sub')}</p>
+              <h1
+                style={{
+                  fontSize: 32,
+                  fontWeight: 600,
+                  letterSpacing: '-0.02em',
+                }}
+              >
+                {t('ocr_title')}
+              </h1>
+              <p style={{ marginTop: 4, fontSize: 15, color: 'var(--fg-muted)' }}>
+                {t('ocr_sub')}
+              </p>
             </div>
           </div>
 
-          {/* Mock document strip */}
-          <div className="pl-card" style={{ padding: '10px 14px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
-            <PdfThumb w={32} h={42} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                scanned-invoice.pdf
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)' }}>
-                1.8 MB · 1 {t('file_pages')}
-              </div>
-            </div>
-            <button
-              style={{
-                background: 'transparent',
-                border: '1px solid var(--line)',
-                color: 'var(--fg-muted)',
-                padding: '6px 10px',
-                borderRadius: 8,
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              <Icon name="trash" size={12} />
-            </button>
-          </div>
-
+          {/* Honesty notice — best-effort + page cap. */}
           <div
             style={{
-              display: 'grid',
-              gridTemplateColumns: 'minmax(0, 360px) minmax(0, 1fr)',
-              gap: 18,
-              alignItems: 'start',
+              padding: '10px 14px',
+              marginBottom: 18,
+              borderRadius: 10,
+              background: 'oklch(0.97 0.03 80)',
+              color: 'oklch(0.40 0.10 80)',
+              border: '1px solid oklch(0.88 0.07 80)',
+              fontSize: 12,
+              lineHeight: 1.5,
             }}
           >
-            {/* Controls */}
-            <div className="pl-card" style={{ padding: 24, minWidth: 0 }}>
-              {/* Language selector */}
-              <div style={{ marginBottom: 20 }}>
+            <strong>{t('ocr_honesty_title') || 'OCR is best-effort'}</strong>:{' '}
+            {t('ocr_honesty_body') ||
+              'clean scans of typed body text work well. Tables, math, and handwriting are unreliable. Free tier is capped at 20 pages per file.'}
+          </div>
+
+          {error && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: 16,
+                padding: 12,
+                borderRadius: 10,
+                background: 'oklch(0.96 0.04 30)',
+                color: 'oklch(0.40 0.18 30)',
+                border: '1px solid oklch(0.85 0.1 30)',
+                fontSize: 13,
+              }}
+            >
+              {t(error)}
+            </div>
+          )}
+
+          {!file ? (
+            <div className="pl-card" style={{ padding: 24 }}>
+              <DropZone
+                accept="application/pdf"
+                maxBytes={MAX_BYTES}
+                multiple={false}
+                onFiles={handleFiles}
+                onReject={handleReject}
+                disabled={stage === 'uploading'}
+                testId="ocr-dropzone"
+              >
+                <Icon name="upload" size={20} />
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {t('upload_title')}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                  {t('upload_subtitle')}
+                </div>
+              </DropZone>
+            </div>
+          ) : stage === 'done' && result ? (
+            <div className="pl-card" style={{ padding: 24 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                {result.name}{' '}
+                <span
+                  style={{
+                    color: 'var(--fg-subtle)',
+                    fontFamily: 'var(--font-mono)',
+                    marginLeft: 6,
+                    fontWeight: 400,
+                  }}
+                >
+                  {(result.size / 1024).toFixed(0)} KB
+                </span>
+              </div>
+              {result.preview !== undefined && (
+                <pre
+                  style={{
+                    maxHeight: 240,
+                    overflow: 'auto',
+                    margin: 0,
+                    padding: 12,
+                    borderRadius: 8,
+                    background: 'var(--bg-muted)',
+                    border: '1px solid var(--line)',
+                    fontSize: 12,
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--fg-muted)',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {result.preview ||
+                    (t('ocr_no_text_recognized') || '(no text recognized)')}
+                </pre>
+              )}
+            </div>
+          ) : (
+            <div className="pl-card" style={{ padding: 24 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--fg-subtle)',
+                  fontFamily: 'var(--font-mono)',
+                  marginBottom: 18,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
+              </div>
+
+              {/* Lang picker */}
+              <div style={{ marginBottom: 18 }}>
                 <label className="pl-label">{t('ocr_lang')}</label>
-                <div role="radiogroup" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-                  {langs.map((l) => {
-                    const active = ocrLang === l.id;
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {langOptions.map((o) => {
+                    const active = uiLang === o.id;
                     return (
                       <button
-                        key={l.id}
-                        role="radio"
-                        aria-checked={active}
-                        onClick={() => setOcrLang(l.id)}
+                        key={o.id}
+                        onClick={() => setUiLang(o.id)}
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          minWidth: 0,
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          background: active ? 'var(--accent-soft)' : 'var(--bg-elev)',
-                          border: '1px solid ' + (active ? 'color-mix(in oklch, var(--accent) 35%, var(--line))' : 'var(--line)'),
+                          padding: '8px 14px',
+                          borderRadius: 8,
+                          border:
+                            '1px solid ' + (active ? 'var(--accent)' : 'var(--line)'),
+                          background: active ? 'var(--accent)' : 'var(--bg-elev)',
+                          color: active ? 'var(--accent-fg)' : 'var(--fg)',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          fontFamily: 'var(--font-mono)',
                           cursor: 'pointer',
-                          fontFamily: 'inherit',
-                          textAlign: 'left',
-                          transition: 'all .15s ease',
                         }}
                       >
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 7,
-                            background: active ? 'var(--accent)' : 'var(--bg-muted)',
-                            color: active ? 'var(--accent-fg)' : 'var(--fg-muted)',
-                            display: 'grid',
-                            placeItems: 'center',
-                            flexShrink: 0,
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 10,
-                            fontWeight: 700,
-                            letterSpacing: '0.04em',
-                          }}
-                        >
-                          {l.id === 'auto' ? <Icon name="globe" size={14} /> : l.code}
-                        </div>
-                        <span
-                          style={{
-                            fontSize: 12.5,
-                            fontWeight: 500,
-                            color: active ? 'var(--accent)' : 'var(--fg)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {l.label}
-                        </span>
+                        {o.label}
                       </button>
                     );
                   })}
                 </div>
-                <div style={{ marginTop: 8, fontSize: 11, color: 'var(--fg-subtle)', fontFamily: 'var(--font-mono)' }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 12,
+                    color: 'var(--fg-muted)',
+                  }}
+                >
                   {t('ocr_lang_hint')}
                 </div>
               </div>
 
-              {/* Mode selector */}
-              <div style={{ marginBottom: 20 }}>
+              {/* Mode picker */}
+              <div>
                 <label className="pl-label">{t('ocr_mode')}</label>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  {modes.map((m) => {
-                    const active = mode === m.id;
+                  {modeOptions.map((o) => {
+                    const active = mode === o.id;
                     return (
                       <button
-                        key={m.id}
-                        onClick={() => setMode(m.id)}
+                        key={o.id}
+                        onClick={() => setMode(o.id)}
                         style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
+                          display: 'grid',
+                          gridTemplateColumns: 'auto 1fr',
                           gap: 12,
-                          minWidth: 0,
-                          padding: '12px 14px',
+                          alignItems: 'flex-start',
+                          padding: 14,
                           borderRadius: 10,
                           background: active ? 'var(--accent-soft)' : 'var(--bg-elev)',
-                          border: '1px solid ' + (active ? 'color-mix(in oklch, var(--accent) 35%, var(--line))' : 'var(--line)'),
+                          border:
+                            '1px solid ' +
+                            (active
+                              ? 'color-mix(in oklch, var(--accent) 35%, var(--line))'
+                              : 'var(--line)'),
                           cursor: 'pointer',
                           fontFamily: 'inherit',
                           textAlign: 'left',
-                          transition: 'all .15s ease',
                         }}
                       >
                         <div
                           style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 8,
-                            background: active ? 'var(--accent)' : 'var(--bg-muted)',
-                            color: active ? 'var(--accent-fg)' : 'var(--fg-muted)',
+                            width: 18,
+                            height: 18,
+                            borderRadius: 999,
+                            border:
+                              '1.5px solid ' +
+                              (active ? 'var(--accent)' : 'var(--line-strong)'),
+                            background: 'var(--bg-elev)',
                             display: 'grid',
                             placeItems: 'center',
-                            flexShrink: 0,
                             marginTop: 1,
+                            flexShrink: 0,
                           }}
                         >
-                          <Icon name={m.icon} size={14} />
+                          {active && (
+                            <span
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: 999,
+                                background: 'var(--accent)',
+                              }}
+                            />
+                          )}
                         </div>
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: active ? 'var(--accent)' : 'var(--fg)' }}>
-                            {m.label}
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 600,
+                              color: active ? 'var(--accent)' : 'var(--fg)',
+                              marginBottom: 2,
+                            }}
+                          >
+                            {o.label}
                           </div>
-                          <div style={{ fontSize: 11.5, color: 'var(--fg-muted)', marginTop: 2 }}>{m.hint}</div>
+                          <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                            {o.hint}
+                          </div>
                         </div>
                       </button>
                     );
                   })}
                 </div>
               </div>
-
-              {/* Status / confidence chips */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <span
-                  className="pl-chip"
-                  style={{
-                    background: 'color-mix(in oklch, var(--accent) 12%, var(--bg-muted))',
-                    color: 'var(--accent)',
-                    borderColor: 'color-mix(in oklch, var(--accent) 25%, var(--line))',
-                  }}
-                >
-                  <Icon name="check" size={11} /> {t('ocr_status_ready')}
-                </span>
-                <span className="pl-chip" style={{ fontFamily: 'var(--font-mono)' }}>
-                  {t('ocr_confidence')} · 94%
-                </span>
-              </div>
             </div>
+          )}
 
-            {/* Preview */}
-            <div className="pl-card" style={{ padding: 20, position: 'sticky', top: 24, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: 'var(--fg-subtle)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  fontFamily: 'var(--font-mono)',
-                  marginBottom: 12,
-                }}
-              >
-                {t('ocr_preview')}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 14, alignItems: 'stretch' }}>
-                <OCRScannedPage label={t('ocr_scanned_label')} />
-                <OCRExtractedBlock label={t('ocr_extracted_label')} mode={mode} sampleLang={sampleLang} />
-              </div>
-              <div
-                style={{
-                  marginTop: 12,
-                  fontSize: 11,
-                  color: 'var(--fg-subtle)',
-                  fontFamily: 'var(--font-mono)',
-                  textAlign: 'center',
-                }}
-              >
-                {t('ocr_preview_caption')}
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, marginTop: 18, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <button className="pl-btn pl-btn-ghost pl-btn-lg">{t('start_over')}</button>
-            <button className="pl-btn pl-btn-primary pl-btn-lg">
-              <Icon name="ocr" size={16} /> {t('ocr_cta')}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Scanned-page mock ───────────────────────────────────────────
-
-interface ScannedLine {
-  w: string;
-  h: number;
-  mt: number;
-  bold?: boolean;
-  dim?: boolean;
-}
-
-function OCRScannedPage({ label }: { label: string }) {
-  const lines: ScannedLine[] = [
-    { w: '70%', h: 12, mt: 0,  bold: true },
-    { w: '44%', h: 8,  mt: 12, dim: true },
-    { w: '94%', h: 6,  mt: 22 },
-    { w: '88%', h: 6,  mt: 8 },
-    { w: '92%', h: 6,  mt: 8 },
-    { w: '62%', h: 6,  mt: 8 },
-    { w: '94%', h: 6,  mt: 16 },
-    { w: '82%', h: 6,  mt: 8 },
-    { w: '58%', h: 6,  mt: 8 },
-    { w: '40%', h: 6,  mt: 18, dim: true },
-  ];
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: 10,
-          color: 'var(--fg-subtle)',
-          fontFamily: 'var(--font-mono)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          aspectRatio: '1 / 1.414',
-          background: 'oklch(0.96 0.012 90)',
-          borderRadius: 6,
-          boxShadow: 'var(--shadow-md)',
-          border: '1px solid var(--line)',
-          overflow: 'hidden',
-          transform: 'rotate(-0.4deg)',
-        }}
-      >
-        {/* Grain overlay */}
-        <div
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage:
-              'radial-gradient(circle at 20% 30%, oklch(0.85 0.02 70 / 0.35) 0 1px, transparent 1px), radial-gradient(circle at 70% 60%, oklch(0.82 0.02 90 / 0.30) 0 1px, transparent 1px), radial-gradient(circle at 40% 80%, oklch(0.88 0.02 80 / 0.25) 0 1px, transparent 1px)',
-            backgroundSize: '3px 3px, 5px 5px, 7px 7px',
-            mixBlendMode: 'multiply',
-            pointerEvents: 'none',
-          }}
-        />
-        <div style={{ position: 'absolute', inset: '9% 9% 9% 9%' }}>
-          {lines.map((l, i) => (
-            <div
-              key={i}
-              style={{
-                width: l.w,
-                height: l.h,
-                marginTop: l.mt,
-                background: l.dim ? 'oklch(0.72 0.01 80)' : l.bold ? 'oklch(0.32 0.01 80)' : 'oklch(0.55 0.01 80)',
-                borderRadius: 1,
-                filter: 'blur(0.3px)',
-                opacity: 0.85,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Recognized-text editor mock ─────────────────────────────────
-
-interface OCRExtractedBlockProps {
-  label: string;
-  mode: OcrMode;
-  sampleLang: SampleLang;
-}
-
-function OCRExtractedBlock({ label, mode, sampleLang }: OCRExtractedBlockProps) {
-  const samples: Record<SampleLang, SampleInvoice> = {
-    en: {
-      title: 'INVOICE #2026-0184',
-      meta: 'Issued · May 02, 2026',
-      body: [
-        'Bill to: Northwind Trading Co.',
-        '440 Market Street, Suite 12',
-        'Portland, OR 97204',
-        '',
-        'Description                Qty   Amount',
-        'Annual support, tier B      1    $4,200.00',
-        'Onboarding session          2      $480.00',
-        '',
-        'Subtotal                         $4,680.00',
-        'Tax (8.5%)                         $397.80',
-        'Total due                        $5,077.80',
-      ],
-    },
-    tr: {
-      title: 'FATURA #2026-0184',
-      meta: 'Düzenleme · 02 Mayıs 2026',
-      body: [
-        'Alıcı: Kuzeyrüzgarı Ticaret A.Ş.',
-        'Bağdat Caddesi 440, Daire 12',
-        'Kadıköy, İstanbul 34710',
-        '',
-        'Açıklama                  Adet   Tutar',
-        'Yıllık destek, B kademesi   1    ₺4.200,00',
-        'Kurulum oturumu             2      ₺480,00',
-        '',
-        'Ara toplam                       ₺4.680,00',
-        'KDV (%8,5)                         ₺397,80',
-        'Toplam                           ₺5.077,80',
-      ],
-    },
-    es: {
-      title: 'FACTURA #2026-0184',
-      meta: 'Emitida · 02 de mayo de 2026',
-      body: [
-        'Facturar a: Comercial Vientonorte S.L.',
-        'Calle del Mercado 440, oficina 12',
-        '28013 Madrid',
-        '',
-        'Descripción                Cant   Importe',
-        'Soporte anual, nivel B       1    €4.200,00',
-        'Sesión de incorporación      2      €480,00',
-        '',
-        'Subtotal                         €4.680,00',
-        'IVA (8,5%)                         €397,80',
-        'Total                            €5.077,80',
-      ],
-    },
-  };
-  const s = samples[sampleLang];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span
-          style={{
-            fontSize: 10,
-            color: 'var(--fg-subtle)',
-            fontFamily: 'var(--font-mono)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}
-        >
-          {label}
-        </span>
-        <span
-          style={{
-            fontSize: 10,
-            color: 'var(--accent)',
-            fontFamily: 'var(--font-mono)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-          }}
-        >
-          {mode === 'extract' ? '.txt' : '.pdf'}
-        </span>
-      </div>
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          aspectRatio: '1 / 1.414',
-          background: 'var(--bg-elev)',
-          borderRadius: 6,
-          boxShadow: 'var(--shadow-md)',
-          border: '1px solid var(--line)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {/* Faux editor header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 10px',
-            borderBottom: '1px solid var(--line)',
-            background: 'var(--bg-muted)',
-          }}
-        >
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: 'oklch(0.72 0.16 25)' }} />
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: 'oklch(0.80 0.14 90)' }} />
-          <span style={{ width: 8, height: 8, borderRadius: 999, background: 'oklch(0.74 0.14 150)' }} />
-          <span
+          <div
             style={{
-              marginLeft: 6,
-              fontSize: 10,
-              color: 'var(--fg-subtle)',
-              fontFamily: 'var(--font-mono)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              display: 'flex',
+              gap: 10,
+              marginTop: 18,
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
             }}
           >
-            scanned-invoice{mode === 'extract' ? '.txt' : '.pdf'}
-          </span>
-        </div>
-        {/* Text body */}
-        <div
-          style={{
-            flex: 1,
-            padding: '12px 14px',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10.5,
-            lineHeight: 1.55,
-            color: 'var(--fg)',
-            overflow: 'hidden',
-            minWidth: 0,
-            wordBreak: 'break-word',
-            overflowWrap: 'anywhere',
-          }}
-        >
-          <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--accent)', marginBottom: 2 }}>{s.title}</div>
-          <div style={{ fontSize: 10, color: 'var(--fg-muted)', marginBottom: 10 }}>{s.meta}</div>
-          {s.body.map((line, i) => {
-            const isTotal = line.startsWith('Total') || line.startsWith('Toplam');
-            return (
-              <div
-                key={i}
-                style={{
-                  whiteSpace: 'pre',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  color: isTotal ? 'var(--fg)' : 'var(--fg-muted)',
-                  fontWeight: isTotal ? 700 : 400,
-                  minHeight: line === '' ? 8 : 'auto',
-                }}
+            {stage === 'processing' && (
+              <span
+                style={{ fontSize: 13, color: 'var(--fg-muted)' }}
+                aria-live="polite"
               >
-                {line || ' '}
-              </div>
-            );
-          })}
+                {t('state_processing')}
+              </span>
+            )}
+            {stage === 'done' && result && (
+              <button
+                className="pl-btn pl-btn-primary pl-btn-lg"
+                onClick={downloadResult}
+              >
+                <Icon name="download" size={16} />
+                {t('state_done')} — {(result.size / 1024).toFixed(0)} KB
+              </button>
+            )}
+            <button
+              className="pl-btn pl-btn-ghost pl-btn-lg"
+              onClick={startOver}
+              disabled={stage === 'uploading' || stage === 'processing'}
+            >
+              {t('start_over')}
+            </button>
+            {stage !== 'done' && (
+              <button
+                className="pl-btn pl-btn-primary pl-btn-lg"
+                onClick={runOcr}
+                disabled={
+                  !file || stage === 'uploading' || stage === 'processing'
+                }
+              >
+                <Icon name="ocr" size={16} /> {t('ocr_cta')}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
+}
+
+function uploadErrorKey(e: unknown): string {
+  if (e instanceof TooLargeError) return 'error_upload_too_large';
+  if (e instanceof UnsupportedMediaTypeError) return 'error_upload_unsupported';
+  if (e instanceof BackendUnreachableError) return 'error_backend_unreachable';
+  return 'error_network';
+}
+
+function jobErrorKey(e: unknown): string {
+  if (e instanceof ValidationError) {
+    if (e.detail && /capped at/i.test(e.detail)) return 'error_ocr_page_cap';
+    return 'error_invalid_ranges';
+  }
+  if (e instanceof JobFailedError) return 'error_job_failed';
+  if (e instanceof JobTimeoutError) return 'error_job_timeout';
+  if (e instanceof BackendUnreachableError) return 'error_backend_unreachable';
+  if (e instanceof NotFoundError) return 'error_file_expired';
+  if (e instanceof LunedocApiError && e.status === 410) return 'error_result_expired';
+  return 'error_job_failed';
 }

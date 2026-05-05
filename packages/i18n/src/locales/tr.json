@@ -344,5 +344,6 @@
   "error_job_failed": "İşlem başarısız oldu. Tekrar deneyin veya farklı bir dosya kullanın.",
   "error_result_expired": "Sonuç süresi doldu. Lütfen aracı tekrar çalıştırın.",
   "error_job_timeout": "İşlem beklenenden uzun sürüyor. Tekrar deneyebilirsiniz.",
-  "error_invalid_ranges": "Sayfa aralıkları geçersiz. 1'den başlayan, belge içinde kalan sayılar kullanın."
+  "error_invalid_ranges": "Sayfa aralıkları geçersiz. 1'den başlayan, belge içinde kalan sayılar kullanın.",
+  "error_ocr_page_cap": "OCR ücretsiz katmanda 20 sayfa ile sınırlıdır."
 }
