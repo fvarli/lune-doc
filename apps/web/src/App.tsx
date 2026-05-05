@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Route, Routes, useParams } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import {
   CompressToolPage,
   ConvertToolPage,
@@ -13,8 +12,9 @@ import {
 import type { Lang } from '@lunedoc/ui';
 import { ToolLandingPage } from './landing/ToolLandingPage';
 import { HomeLanding } from './landing/HomeLanding';
-import { TOOL_CONFIGS, LANGS } from './landing/tool-config';
+import { TOOL_CONFIGS } from './landing/tool-config';
 import type { ToolConfig } from './landing/tool-config';
+import { useLocaleNav } from './landing/use-locale-nav';
 
 const TOOL_BY_SLUG: Record<string, ToolConfig> = Object.fromEntries(
   TOOL_CONFIGS.map((c) => [c.slug, c]),
@@ -43,18 +43,30 @@ function widgetForSlug(slug: string, lang: Lang) {
   }
 }
 
-interface ToolRouteProps {
-  lang: Lang;
-  setLang: (lang: Lang) => void;
-}
+/**
+ * Single-route dispatcher. The URL is the source of truth for both
+ * locale and tool slug — see use-locale-nav.ts. This collapses the
+ * 4-route table from the previous shape into one splat route, which
+ * also fixes a routing ambiguity where /tr would match `/:slug` first
+ * and 404 inside the tool lookup.
+ */
+function Dispatcher() {
+  const { lang, slug, setLang } = useLocaleNav();
 
-function ToolRoute({ lang, setLang }: ToolRouteProps) {
-  const { slug } = useParams<{ slug: string }>();
-  if (!slug) return null;
+  if (!slug) {
+    return <HomeLanding lang={lang} setLang={setLang} />;
+  }
+
   const config = TOOL_BY_SLUG[slug];
-  if (!config) return null;
+  if (!config) {
+    // Unknown slug — fall back to the localized home so the URL stays
+    // valid and the user gets a real page instead of a blank screen.
+    return <HomeLanding lang={lang} setLang={setLang} />;
+  }
   const widget = widgetForSlug(slug, lang);
-  if (!widget) return null;
+  if (!widget) {
+    return <HomeLanding lang={lang} setLang={setLang} />;
+  }
 
   return (
     <ToolLandingPage
@@ -74,47 +86,10 @@ function ToolRoute({ lang, setLang }: ToolRouteProps) {
   );
 }
 
-interface LocalizedToolRouteProps {
-  setLang: (lang: Lang) => void;
-}
-
-function LocalizedToolRoute({ setLang }: LocalizedToolRouteProps) {
-  const { lang: paramLang } = useParams<{ lang: string; slug: string }>();
-  const lang = (LANGS as string[]).includes(paramLang ?? '')
-    ? (paramLang as Lang)
-    : null;
-  if (!lang) return null;
-  return <ToolRoute lang={lang} setLang={setLang} />;
-}
-
-interface LocalizedHomeRouteProps {
-  setLang: (lang: Lang) => void;
-}
-
-function LocalizedHomeRoute({ setLang }: LocalizedHomeRouteProps) {
-  const { lang: paramLang } = useParams<{ lang: string }>();
-  const lang = (LANGS as string[]).includes(paramLang ?? '')
-    ? (paramLang as Lang)
-    : null;
-  if (!lang) return null;
-  return <HomeLanding lang={lang} setLang={setLang} />;
-}
-
 export default function App() {
-  const [lang, setLang] = useState<Lang>('en');
-
   return (
     <Routes>
-      {/* English at root */}
-      <Route path="/" element={<HomeLanding lang={lang} setLang={setLang} />} />
-      <Route path="/:slug" element={<ToolRoute lang={lang} setLang={setLang} />} />
-
-      {/* Localized */}
-      <Route path="/:lang" element={<LocalizedHomeRoute setLang={setLang} />} />
-      <Route
-        path="/:lang/:slug"
-        element={<LocalizedToolRoute setLang={setLang} />}
-      />
+      <Route path="*" element={<Dispatcher />} />
     </Routes>
   );
 }
