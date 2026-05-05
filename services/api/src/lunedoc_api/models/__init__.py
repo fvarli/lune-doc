@@ -9,6 +9,8 @@ from .job import (
     ResultFile,
     SplitJobRequest,
     SplitMode,
+    WatermarkJobRequest,
+    WatermarkPosition,
 )
 
 __all__ = [
@@ -25,4 +27,6 @@ __all__ = [
     "ResultFile",
     "SplitJobRequest",
     "SplitMode",
+    "WatermarkJobRequest",
+    "WatermarkPosition",
 ]

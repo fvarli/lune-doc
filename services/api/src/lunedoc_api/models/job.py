@@ -20,6 +20,9 @@ from .file import Base
 JobStatus = Literal["queued", "running", "done", "failed"]
 JobTool = Literal["merge", "split", "watermark", "sign", "ocr", "edit", "compress", "convert"]
 SplitMode = Literal["ranges", "per_page"]
+WatermarkPosition = Literal[
+    "center", "top-left", "top-right", "bottom-left", "bottom-right"
+]
 
 
 class Job(Base):
@@ -74,6 +77,32 @@ class SplitJobRequest(BaseModel):
             if start > end:
                 raise ValueError(f"range start must be <= end; got {r}")
         return v
+
+
+class WatermarkJobRequest(BaseModel):
+    """Body of POST /api/v1/jobs/watermark.
+
+    Stamps a text watermark on every page of `file_id`.
+    """
+
+    file_id: str = Field(..., description="Uploaded PDF file_id")
+    text: str = Field(..., min_length=1, max_length=200, description="Watermark text")
+    position: WatermarkPosition = Field(
+        default="center",
+        description="center | top-left | top-right | bottom-left | bottom-right",
+    )
+    opacity: float = Field(
+        default=0.3,
+        ge=0.1,
+        le=1.0,
+        description="0.1 (very faint) to 1.0 (fully opaque)",
+    )
+    rotation: float = Field(
+        default=-30.0,
+        ge=-180.0,
+        le=180.0,
+        description="Degrees, default -30 (diagonal up-left for center)",
+    )
 
 
 class JobStatusResponse(BaseModel):

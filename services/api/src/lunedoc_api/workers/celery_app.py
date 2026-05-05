@@ -25,6 +25,7 @@ celery_app = Celery(
         "lunedoc_api.workers.sweeper",
         "lunedoc_api.workers.tasks.merge",
         "lunedoc_api.workers.tasks.split",
+        "lunedoc_api.workers.tasks.watermark",
     ],
 )
 
