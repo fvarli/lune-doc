@@ -43,13 +43,15 @@ Install once on your machine:
 | `libmagic1` | — | MIME sniffing in the backend |
 | `ghostscript` | 10+ | PDF compression (`/jobs/compress`). Falls back to PyMuPDF if absent — modest reduction only. |
 | `libreoffice` | 24+ | Office round-trips for `/jobs/convert` (PDF↔DOCX/PPTX, DOCX→PDF). Image directions and PDF→JPG/PNG run on PyMuPDF and don't need it. |
+| `tesseract-ocr` + lang packs | 5+ | OCR (`/jobs/ocr`). **Required — no fallback engine.** Install one language pack per UI locale (`-eng`, `-tur`, `-spa` for the EN/TR/ES surfaces). Free tier capped at 20 pages per file. |
 
 On Xubuntu / Ubuntu:
 
 ```bash
 # Node + pnpm: https://nodejs.org and https://pnpm.io
 curl -LsSf https://astral.sh/uv/install.sh | sh        # uv
-sudo apt install -y postgresql redis-server libmagic1 ghostscript libreoffice
+sudo apt install -y postgresql redis-server libmagic1 ghostscript libreoffice \
+                    tesseract-ocr tesseract-ocr-eng tesseract-ocr-tur tesseract-ocr-spa
 ```
 
 ### One-time Postgres setup
