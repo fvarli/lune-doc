@@ -22,6 +22,9 @@ import type {
   EmailVerifyRequest,
   JobResultResponse,
   JobStatusResponse,
+  MeFilesResponse,
+  MeJobsResponse,
+  MeUsageResponse,
   OcrJobRequest,
   SignJobRequest,
   SplitJobRequest,
@@ -337,6 +340,49 @@ export class LunedocClient {
       body: JSON.stringify({ owner_tokens }),
     });
     return (await resp.json()) as ClaimResponse;
+  }
+
+  // ── /me dashboard (Phase 4 Step 2A) ────────────────────────────────────
+
+  private mePageQuery(opts: { limit?: number; offset?: number }): string {
+    const params = new URLSearchParams();
+    if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+    if (opts.offset !== undefined) params.set('offset', String(opts.offset));
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  }
+
+  /** Paginated list of the authenticated user's jobs, newest first. */
+  async getMeJobs(
+    access_token: string,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<MeJobsResponse> {
+    const resp = await this.request(`/me/jobs${this.mePageQuery(opts)}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    return (await resp.json()) as MeJobsResponse;
+  }
+
+  /** Paginated list of the user's non-expired files, newest first. */
+  async getMeFiles(
+    access_token: string,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<MeFilesResponse> {
+    const resp = await this.request(`/me/files${this.mePageQuery(opts)}`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    return (await resp.json()) as MeFilesResponse;
+  }
+
+  /** Account usage summary for the dashboard header. */
+  async getMeUsage(access_token: string): Promise<MeUsageResponse> {
+    const resp = await this.request('/me/usage', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    return (await resp.json()) as MeUsageResponse;
   }
 
   // ── jobs polling ───────────────────────────────────────────────────────

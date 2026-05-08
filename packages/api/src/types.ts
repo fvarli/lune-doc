@@ -270,3 +270,55 @@ export type ClaimResponse = {
   files_claimed: number;
   jobs_claimed: number;
 };
+
+// ── /me dashboard (Phase 4 Step 2A) ───────────────────────────────────────
+// Mirrors services/api/src/lunedoc_api/models/me.py. Pagination envelope is
+// {items, limit, offset, total} across all three reads. owner_token_hash is
+// deliberately absent — the backend never serializes it.
+
+export type MeJobItem = {
+  job_id: string;
+  tool: JobTool;
+  status: JobStatus;
+  input_file_ids: string[];
+  output_file_ids: string[];
+  error: string | null;
+  /** Slice of the job's `params` JSONB, populated by compress/ocr/convert. */
+  result_meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MeJobsResponse = {
+  items: MeJobItem[];
+  limit: number;
+  offset: number;
+  total: number;
+};
+
+export type MeFileItem = {
+  file_id: string;
+  name: string;
+  mime: string;
+  size: number;
+  expires_at: string;
+  created_at: string;
+};
+
+export type MeFilesResponse = {
+  items: MeFileItem[];
+  limit: number;
+  offset: number;
+  total: number;
+};
+
+export type MeUsageResponse = {
+  /** Hardcoded 'free' until a tier column lands. */
+  tier: 'free';
+  total_files: number;
+  total_jobs: number;
+  jobs_by_status: Record<string, number>;
+  jobs_by_tool: Record<string, number>;
+  /** Always 0 today; daily OCR-page tracking lands with quota work. */
+  ocr_pages_used_today: number;
+};
