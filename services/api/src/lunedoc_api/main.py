@@ -4,10 +4,12 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from . import __version__
+from .quota import QuotaExceededError
 from .routes import auth, files, health, jobs, me
 from .settings import get_settings
 
@@ -26,6 +28,33 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url=None,
 )
+
+
+@app.exception_handler(QuotaExceededError)
+async def _quota_exceeded_handler(
+    _request: Request, exc: QuotaExceededError
+) -> JSONResponse:
+    """Translate quota errors into HTTP 429 with a structured payload.
+
+    `reset_at` is emitted as ISO-8601 UTC with the trailing `Z` so
+    clients can parse it without dealing with `+00:00`.
+    """
+    reset_at = exc.reset_at.isoformat()
+    if reset_at.endswith("+00:00"):
+        reset_at = reset_at[:-6] + "Z"
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": {
+                "code": "quota_exceeded",
+                "quota": exc.quota,
+                "limit": exc.limit,
+                "used": exc.used,
+                "reset_at": reset_at,
+            }
+        },
+    )
+
 
 cors = get_settings().CORS_ORIGINS
 if cors:
