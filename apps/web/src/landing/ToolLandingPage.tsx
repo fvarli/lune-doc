@@ -8,6 +8,7 @@ import {
   softwareApplicationSchema,
 } from '../seo/schema';
 import type { ToolPageContent } from '../data/ocr-pdf';
+import { AuthHeaderControls } from '../auth/AuthHeaderControls';
 
 interface ToolLandingPageProps {
   lang: Lang;
@@ -103,7 +104,7 @@ export function ToolLandingPage({
           fontFamily: 'var(--font-sans)',
         }}
       >
-        <Header lang={lang} setLang={setLang} />
+        <Header lang={lang} setLang={setLang} rightSlot={<AuthHeaderControls lang={lang} />} />
 
         <main style={{ flex: 1 }}>
           {/* Hero */}

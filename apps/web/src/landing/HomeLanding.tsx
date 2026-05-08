@@ -8,6 +8,7 @@ import {
   type ToolKey,
 } from '@lunedoc/ui';
 import { SITE_ORIGIN, breadcrumbListSchema } from '../seo/schema';
+import { AuthHeaderControls } from '../auth/AuthHeaderControls';
 
 interface HomeLandingProps {
   lang: Lang;
@@ -122,7 +123,7 @@ export function HomeLanding({ lang, setLang }: HomeLandingProps) {
           fontFamily: 'var(--font-sans)',
         }}
       >
-        <Header lang={lang} setLang={setLang} />
+        <Header lang={lang} setLang={setLang} rightSlot={<AuthHeaderControls lang={lang} />} />
 
         <main style={{ flex: 1 }}>
           <section
