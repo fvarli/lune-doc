@@ -20,6 +20,8 @@ dependencies = [
     "pymupdf>=1.24",
     "pytesseract>=0.3.13",
     "pillow>=10",
+    "pyjwt>=2.9",
+    "email-validator>=2.2",
 ]
 
 [dependency-groups]

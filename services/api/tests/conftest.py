@@ -31,6 +31,14 @@ os.environ["DATABASE_URL_SYNC"] = os.environ.get(
     "postgresql+psycopg2://lunedoc:lunedoc_dev_password@localhost:5432/lunedoc_test",
 )
 os.environ.setdefault("OWNER_TOKEN_PEPPER", "test-pepper-not-secret")
+os.environ.setdefault(
+    "JWT_SECRET",
+    "test-jwt-secret-not-real-padding-padding-padding",  # ≥32 bytes for HS256
+)
+os.environ.setdefault(
+    "AUTH_CHALLENGE_PEPPER",
+    "test-challenge-pepper-not-real-padding-padding",
+)
 os.environ.setdefault("STORAGE_ROOT", str(Path(__file__).parent / ".test-storage"))
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")  # use db 15 for tests
 # Run Celery tasks synchronously in-process during tests — no broker, no worker.
@@ -47,20 +55,46 @@ async def _prepare_db():
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.execute(
-            text("TRUNCATE TABLE jobs, files RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE TABLE jobs, files, refresh_tokens, "
+                "auth_challenges, users RESTART IDENTITY CASCADE"
+            )
         )
+    yield
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _flush_redis_per_test() -> AsyncIterator[None]:
+    """Wipe the test Redis db (15) before each test — rate-limit
+    counters from a prior test must not bleed in. Autouse because
+    tests that don't take the `db` fixture still hit auth endpoints
+    that talk to Redis.
+    """
+    try:
+        import redis.asyncio as redis_aio
+
+        client = redis_aio.from_url(
+            os.environ["REDIS_URL"], decode_responses=True
+        )
+        await client.flushdb()
+        await client.aclose()
+    except Exception:
+        pass
     yield
 
 
 @pytest_asyncio.fixture
 async def db() -> AsyncIterator[AsyncSession]:
-    """Per-test DB session. Truncates jobs + files before yielding."""
+    """Per-test DB session. Truncates jobs + files + auth tables."""
     from lunedoc_api.db import get_engine, get_session_factory
 
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.execute(
-            text("TRUNCATE TABLE jobs, files RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE TABLE jobs, files, refresh_tokens, "
+                "auth_challenges, users RESTART IDENTITY CASCADE"
+            )
         )
 
     factory = get_session_factory()

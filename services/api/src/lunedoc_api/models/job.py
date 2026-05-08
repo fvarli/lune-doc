@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -65,6 +65,11 @@ class Job(Base):
     params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     error: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     owner_token_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

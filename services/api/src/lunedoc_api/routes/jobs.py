@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth.deps import can_access, get_current_user_optional
 from ..db import get_session
 from ..models.file import File as FileRow
 from ..models.job import (
@@ -34,7 +35,8 @@ from ..models.job import (
     SplitJobRequest,
     WatermarkJobRequest,
 )
-from ..owner_token import hash_token, verify
+from ..models.user import User
+from ..owner_token import hash_token
 from ..storage import get_storage
 
 router = APIRouter()
@@ -55,15 +57,18 @@ def _job_to_status(job: Job) -> JobStatusResponse:
 
 async def _load_owned_job(
     job_id: str,
-    token: str | None,
+    *,
+    user: User | None,
+    owner_token: str | None,
     db: AsyncSession,
 ) -> Job:
-    """Load a Job by id, verify owner_token, return it.
+    """Load a Job by id, verify caller owns it, return it.
 
-    404 on either missing-row or token-mismatch (no existence leak).
+    Ownership: claimed (user_id set) → only the owning user; anonymous
+    (user_id NULL) → owner_token must match. 404 either way.
     """
     job = (await db.execute(select(Job).where(Job.id == job_id))).scalar_one_or_none()
-    if job is None or not verify(token, job.owner_token_hash):
+    if job is None or not can_access(job, user=user, owner_token=owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     return job
 
@@ -77,6 +82,7 @@ async def _load_owned_job(
 async def create_merge_job(
     body: MergeJobRequest,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
     if not x_owner_token:
@@ -88,7 +94,7 @@ async def create_merge_job(
         f = (
             await db.execute(select(FileRow).where(FileRow.id == fid))
         ).scalar_one_or_none()
-        if f is None or not verify(x_owner_token, f.owner_token_hash):
+        if f is None or not can_access(f, user=user, owner_token=x_owner_token):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="not found"
             )
@@ -133,9 +139,10 @@ async def create_merge_job(
 async def get_job(
     job_id: str,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
-    job = await _load_owned_job(job_id, x_owner_token, db)
+    job = await _load_owned_job(job_id, user=user, owner_token=x_owner_token, db=db)
     return _job_to_status(job)
 
 
@@ -147,9 +154,10 @@ async def get_job(
 async def get_job_result(
     job_id: str,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobResultResponse:
-    job = await _load_owned_job(job_id, x_owner_token, db)
+    job = await _load_owned_job(job_id, user=user, owner_token=x_owner_token, db=db)
 
     if job.status == "queued" or job.status == "running":
         raise HTTPException(
@@ -202,6 +210,7 @@ async def get_job_result(
 async def create_split_job(
     body: SplitJobRequest,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
     if not x_owner_token:
@@ -220,7 +229,7 @@ async def create_split_job(
     f = (
         await db.execute(select(FileRow).where(FileRow.id == body.file_id))
     ).scalar_one_or_none()
-    if f is None or not verify(x_owner_token, f.owner_token_hash):
+    if f is None or not can_access(f, user=user, owner_token=x_owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     if f.mime != "application/pdf":
         raise HTTPException(
@@ -267,6 +276,7 @@ async def create_split_job(
 async def create_watermark_job(
     body: WatermarkJobRequest,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
     if not x_owner_token:
@@ -275,7 +285,7 @@ async def create_watermark_job(
     f = (
         await db.execute(select(FileRow).where(FileRow.id == body.file_id))
     ).scalar_one_or_none()
-    if f is None or not verify(x_owner_token, f.owner_token_hash):
+    if f is None or not can_access(f, user=user, owner_token=x_owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     if f.mime != "application/pdf":
         raise HTTPException(
@@ -328,6 +338,7 @@ async def create_watermark_job(
 async def create_sign_job(
     body: SignJobRequest,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
     if not x_owner_token:
@@ -336,7 +347,7 @@ async def create_sign_job(
     f = (
         await db.execute(select(FileRow).where(FileRow.id == body.file_id))
     ).scalar_one_or_none()
-    if f is None or not verify(x_owner_token, f.owner_token_hash):
+    if f is None or not can_access(f, user=user, owner_token=x_owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     if f.mime != "application/pdf":
         raise HTTPException(
@@ -394,6 +405,7 @@ async def create_sign_job(
 async def create_edit_job(
     body: EditJobRequest,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
     if not x_owner_token:
@@ -402,7 +414,7 @@ async def create_edit_job(
     f = (
         await db.execute(select(FileRow).where(FileRow.id == body.file_id))
     ).scalar_one_or_none()
-    if f is None or not verify(x_owner_token, f.owner_token_hash):
+    if f is None or not can_access(f, user=user, owner_token=x_owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     if f.mime != "application/pdf":
         raise HTTPException(
@@ -451,6 +463,7 @@ async def create_edit_job(
 async def create_compress_job(
     body: CompressJobRequest,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
     if not x_owner_token:
@@ -459,7 +472,7 @@ async def create_compress_job(
     f = (
         await db.execute(select(FileRow).where(FileRow.id == body.file_id))
     ).scalar_one_or_none()
-    if f is None or not verify(x_owner_token, f.owner_token_hash):
+    if f is None or not can_access(f, user=user, owner_token=x_owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     if f.mime != "application/pdf":
         raise HTTPException(
@@ -512,6 +525,7 @@ _FORMAT_TO_MIME: dict[str, str] = {
 async def create_convert_job(
     body: ConvertJobRequest,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
     if not x_owner_token:
@@ -520,7 +534,7 @@ async def create_convert_job(
     f = (
         await db.execute(select(FileRow).where(FileRow.id == body.file_id))
     ).scalar_one_or_none()
-    if f is None or not verify(x_owner_token, f.owner_token_hash):
+    if f is None or not can_access(f, user=user, owner_token=x_owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
 
     expected_mime = _FORMAT_TO_MIME[body.from_format]
@@ -572,6 +586,7 @@ async def create_convert_job(
 async def create_ocr_job(
     body: OcrJobRequest,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> JobStatusResponse:
     if not x_owner_token:
@@ -580,7 +595,7 @@ async def create_ocr_job(
     f = (
         await db.execute(select(FileRow).where(FileRow.id == body.file_id))
     ).scalar_one_or_none()
-    if f is None or not verify(x_owner_token, f.owner_token_hash):
+    if f is None or not can_access(f, user=user, owner_token=x_owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     if f.mime != "application/pdf":
         raise HTTPException(

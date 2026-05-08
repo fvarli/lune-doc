@@ -20,11 +20,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth.deps import can_access, get_current_user_optional
 from ..db import get_session
 from ..mime import is_allowed, sniff_bytes
 from ..models.file import File as FileRow, FileMetadata, UploadResponse
+from ..models.user import User
 from ..owner_token import generate as generate_token
-from ..owner_token import hash_token, is_valid_format, verify
+from ..owner_token import hash_token, is_valid_format
 from ..settings import get_settings
 from ..storage import TooLargeError, get_storage
 
@@ -131,16 +133,20 @@ async def upload_file(
 
 async def _load_owned(
     file_id: str,
-    token: str | None,
+    *,
+    user: User | None,
+    owner_token: str | None,
     db: AsyncSession,
 ) -> FileRow:
-    """Load a file by id, verify owner_token, return the row.
+    """Load a file by id, verify caller owns it, return the row.
 
-    Raises 404 on either missing-row or token-mismatch — same response either way.
+    Ownership: claimed (user_id set) → only the owning user may access;
+    anonymous (user_id NULL) → owner_token must match. Either failure
+    raises 404 — never reveal which.
     """
     result = await db.execute(select(FileRow).where(FileRow.id == file_id))
     row = result.scalar_one_or_none()
-    if row is None or not verify(token, row.owner_token_hash):
+    if row is None or not can_access(row, user=user, owner_token=owner_token):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     return row
 
@@ -153,9 +159,10 @@ async def _load_owned(
 async def get_file_metadata(
     file_id: str,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> FileMetadata:
-    row = await _load_owned(file_id, x_owner_token, db)
+    row = await _load_owned(file_id, user=user, owner_token=x_owner_token, db=db)
     return FileMetadata(
         file_id=row.id,
         name=row.name,
@@ -170,9 +177,10 @@ async def get_file_metadata(
 async def download_file(
     file_id: str,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
-    row = await _load_owned(file_id, x_owner_token, db)
+    row = await _load_owned(file_id, user=user, owner_token=x_owner_token, db=db)
     storage = get_storage()
 
     if not await storage.exists(row.storage_key):
@@ -198,6 +206,7 @@ async def download_file(
 async def delete_file(
     file_id: str,
     x_owner_token: str | None = Header(default=None),
+    user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_session),
 ) -> None:
     """Idempotent. Always 204, regardless of existence or token validity.
@@ -206,7 +215,7 @@ async def delete_file(
     """
     result = await db.execute(select(FileRow).where(FileRow.id == file_id))
     row = result.scalar_one_or_none()
-    if row is None or not verify(x_owner_token, row.owner_token_hash):
+    if row is None or not can_access(row, user=user, owner_token=x_owner_token):
         return  # silently no-op
 
     storage = get_storage()

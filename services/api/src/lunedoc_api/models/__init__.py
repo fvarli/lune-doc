@@ -1,4 +1,7 @@
+from .auth_challenge import AuthChallenge
 from .file import Base, File, FileMetadata, UploadResponse
+from .refresh_token import RefreshToken
+from .user import User
 from .job import (
     ALLOWED_CONVERT_PAIRS,
     OCR_FREE_PAGE_CAP,
@@ -34,10 +37,13 @@ from .job import (
 __all__ = [
     "ALLOWED_CONVERT_PAIRS",
     "OCR_FREE_PAGE_CAP",
+    "AuthChallenge",
     "Base",
     "File",
     "FileMetadata",
+    "RefreshToken",
     "UploadResponse",
+    "User",
     "CompressJobRequest",
     "CompressLevel",
     "ConvertFormat",
