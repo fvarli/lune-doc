@@ -17,6 +17,7 @@ import type { ToolConfig } from './landing/tool-config';
 import { useLocaleNav } from './landing/use-locale-nav';
 import { SigninPage } from './auth/SigninPage';
 import { AuthVerifyPage } from './auth/AuthVerifyPage';
+import { DashboardPage } from './dashboard/DashboardPage';
 
 const TOOL_BY_SLUG: Record<string, ToolConfig> = Object.fromEntries(
   TOOL_CONFIGS.map((c) => [c.slug, c]),
@@ -64,6 +65,9 @@ function Dispatcher() {
   }
   if (slug === 'auth/verify') {
     return <AuthVerifyPage lang={lang} setLang={setLang} />;
+  }
+  if (slug === 'dashboard') {
+    return <DashboardPage lang={lang} setLang={setLang} />;
   }
 
   const config = TOOL_BY_SLUG[slug];
