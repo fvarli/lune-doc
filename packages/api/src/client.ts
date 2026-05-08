@@ -13,14 +13,19 @@ import {
   fromResponse,
 } from './errors';
 import type {
+  AuthUser,
+  ClaimResponse,
   CompressJobRequest,
   ConvertJobRequest,
   EditJobRequest,
+  EmailStartResponse,
+  EmailVerifyRequest,
   JobResultResponse,
   JobStatusResponse,
   OcrJobRequest,
   SignJobRequest,
   SplitJobRequest,
+  TokenResponse,
   UploadedFile,
   WatermarkJobRequest,
 } from './types';
@@ -245,6 +250,96 @@ export class LunedocClient {
     });
     return (await resp.json()) as JobResultResponse;
   }
+
+  // ── auth (Phase 4) ─────────────────────────────────────────────────────
+
+  /**
+   * Begin the email passwordless flow. The backend always returns 200
+   * regardless of address validity to avoid an enumeration oracle —
+   * surface a generic "check your inbox" hint to the user.
+   */
+  async startEmailAuth(email: string): Promise<EmailStartResponse> {
+    const resp = await this.request('/auth/email/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    return (await resp.json()) as EmailStartResponse;
+  }
+
+  /**
+   * Complete the email passwordless flow. Supply exactly one of
+   * `code` (6 digits) or `link_token` (32-char base32 from the magic
+   * link). 400 on any failure — never reveals which check failed.
+   */
+  async verifyEmailAuth(req: EmailVerifyRequest): Promise<TokenResponse> {
+    const resp = await this.request('/auth/email/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    });
+    return (await resp.json()) as TokenResponse;
+  }
+
+  /**
+   * Rotate the refresh token. The server issues a new plaintext on
+   * every call and revokes the prior one — replace the stored value.
+   * Reuse of an already-rotated token revokes the entire chain.
+   */
+  async refreshAuth(refresh_token: string): Promise<TokenResponse> {
+    const resp = await this.request('/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token }),
+    });
+    return (await resp.json()) as TokenResponse;
+  }
+
+  /**
+   * Idempotent server-side. Either pass the refresh token to revoke,
+   * or omit it and rely on the access token's `rt_id` claim by passing
+   * an Authorization: Bearer header — but the AuthContext path uses
+   * the explicit refresh-token form.
+   */
+  async logout(refresh_token?: string): Promise<void> {
+    await this.request('/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(refresh_token ? { refresh_token } : {}),
+    });
+  }
+
+  /** Currently authenticated user. 401 if the access token is bad. */
+  async getAuthMe(access_token: string): Promise<AuthUser> {
+    const resp = await this.request('/auth/me', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+    return (await resp.json()) as AuthUser;
+  }
+
+  /**
+   * Link the supplied anonymous owner_tokens to the authenticated user.
+   * Idempotent server-side; rows already owned by another user are
+   * skipped (never stolen). Backend caps at 10 tokens per call —
+   * additional tokens beyond that are silently ignored.
+   */
+  async claimAnonymousWork(
+    access_token: string,
+    owner_tokens: string[],
+  ): Promise<ClaimResponse> {
+    const resp = await this.request('/auth/claim', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${access_token}`,
+      },
+      body: JSON.stringify({ owner_tokens }),
+    });
+    return (await resp.json()) as ClaimResponse;
+  }
+
+  // ── jobs polling ───────────────────────────────────────────────────────
 
   /**
    * Poll until status is terminal (done | failed) or timeoutMs elapses.

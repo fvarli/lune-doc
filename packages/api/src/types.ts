@@ -222,3 +222,51 @@ export type OcrJobRequest = {
 
 /** Free-tier OCR page cap — keep in sync with backend OCR_FREE_PAGE_CAP. */
 export const OCR_FREE_PAGE_CAP = 20;
+
+// ── auth (Phase 4) ────────────────────────────────────────────────────────
+// Mirrors services/api/src/lunedoc_api/auth/schemas.py. Field names are the
+// JSON wire format (snake_case).
+
+export type EmailStartRequest = { email: string };
+
+export type EmailStartResponse = { ok: boolean };
+
+/**
+ * Body of POST /auth/email/verify. Exactly one of `code` (6 digits) or
+ * `link_token` (32-char base32 from the magic link) must be supplied.
+ */
+export type EmailVerifyRequest = {
+  email: string;
+  code?: string;
+  link_token?: string;
+};
+
+export type AuthUser = {
+  id: string;
+  email: string;
+};
+
+/**
+ * Returned by /auth/email/verify and /auth/refresh. The refresh token
+ * rotates on every refresh — replace the stored value each time.
+ */
+export type TokenResponse = {
+  access_token: string;
+  refresh_token: string;
+  /** Always "Bearer" today, but the API surfaces it explicitly. */
+  token_type: string;
+  /** Access-token lifetime in seconds. */
+  expires_in: number;
+  user: AuthUser;
+};
+
+export type RefreshRequest = { refresh_token: string };
+
+export type LogoutRequest = { refresh_token?: string };
+
+export type ClaimRequest = { owner_tokens: string[] };
+
+export type ClaimResponse = {
+  files_claimed: number;
+  jobs_claimed: number;
+};

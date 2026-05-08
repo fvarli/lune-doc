@@ -57,6 +57,13 @@ export class GoneError extends LunedocApiError {
   }
 }
 
+export class UnauthorizedError extends LunedocApiError {
+  constructor(detail?: string) {
+    super(401, detail);
+    this.name = 'UnauthorizedError';
+  }
+}
+
 export class JobFailedError extends LunedocApiError {
   jobError: string;
   constructor(jobError: string) {
@@ -92,6 +99,8 @@ export async function fromResponse(resp: Response): Promise<LunedocApiError> {
     detail = (await resp.clone().text()) || undefined;
   }
   switch (resp.status) {
+    case 401:
+      return new UnauthorizedError(detail);
     case 404:
       return new NotFoundError(detail);
     case 413:

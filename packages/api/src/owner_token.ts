@@ -65,6 +65,28 @@ export function rememberFile(meta: FileMeta): void {
   writeRecent(recent);
 }
 
+/**
+ * Snapshot of every anonymous owner_token currently held by this browser.
+ * Used by the auth claim flow on sign-in to link prior anonymous work to
+ * the freshly-authenticated user. Capped at 50 entries to bound the
+ * payload — the backend caps at 10 per call anyway.
+ */
+export function listAllOwnerTokens(): string[] {
+  const out: string[] = [];
+  if (hasLocalStorage()) {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k && k.startsWith(TOKEN_PREFIX)) {
+        const v = window.localStorage.getItem(k);
+        if (v) out.push(v);
+      }
+    }
+  } else {
+    for (const v of memory.values()) out.push(v);
+  }
+  return out.slice(0, 50);
+}
+
 export function recentFiles(): FileMeta[] {
   if (hasLocalStorage()) {
     const raw = window.localStorage.getItem(RECENT_KEY);
