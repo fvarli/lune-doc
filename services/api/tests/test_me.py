@@ -429,7 +429,7 @@ async def test_me_usage_tier_is_free(
 async def test_me_usage_ocr_pages_used_today_is_zero(
     client: AsyncClient, captured_sender: CapturingEmailSender
 ) -> None:
-    """Daily OCR-page tracking isn't implemented yet; endpoint returns 0."""
+    """Fresh users with no OCR activity see 0 (Redis db flushed per test)."""
     tokens = await _signin(client, captured_sender)
     r = await client.get("/api/v1/me/usage", headers=_bearer(tokens))
     assert r.json()["ocr_pages_used_today"] == 0

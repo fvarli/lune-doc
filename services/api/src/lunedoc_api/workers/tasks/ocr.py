@@ -20,6 +20,11 @@ from ...db import get_sync_session_factory
 from ...engines.ocr import OcrError, ocr_pdf
 from ...models.file import File
 from ...models.job import Job
+from ...quota import (
+    decrement_active_jobs_sync,
+    identity_for_job,
+    record_ocr_pages_sync,
+)
 from ...settings import get_settings
 from ...storage import get_storage
 from ..celery_app import celery_app
@@ -117,6 +122,9 @@ def run_ocr_job(job_id: str) -> dict:
             job.status = "done"
             job.error = None
 
+            # Source of truth for daily OCR-pages quota. Only on success.
+            record_ocr_pages_sync(identity_for_job(job), int(result["page_count"]))
+
             log.info(
                 "ocr: job %s mode=%s lang=%s pages=%d -> %d bytes",
                 job_id,
@@ -139,5 +147,6 @@ def run_ocr_job(job_id: str) -> dict:
                 shutil.rmtree(scratch, ignore_errors=True)
             job.updated_at = datetime.now(timezone.utc)
             db.commit()
+            decrement_active_jobs_sync(identity_for_job(job))
 
         return {"job_id": job_id, "status": job.status}

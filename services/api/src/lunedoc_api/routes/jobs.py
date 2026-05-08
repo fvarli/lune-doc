@@ -37,6 +37,15 @@ from ..models.job import (
 )
 from ..models.user import User
 from ..owner_token import hash_token
+from ..quota import (
+    decrement_active_jobs,
+    enforce_concurrent_jobs,
+    enforce_jobs_per_hour,
+    enforce_ocr_pages,
+    identity_for_user,
+    increment_active_jobs,
+    record_job_creation,
+)
 from ..storage import get_storage
 
 router = APIRouter()
@@ -53,6 +62,17 @@ def _job_to_status(job: Job) -> JobStatusResponse:
         created_at=job.created_at,
         updated_at=job.updated_at,
     )
+
+
+async def _reserve_quota_slot(identity: str) -> None:
+    """Increment the active-jobs counter and bump the jobs/hour counter.
+
+    Called after enforcement passes and the job row has been created,
+    immediately before `task.delay(...)`. The caller is responsible
+    for `decrement_active_jobs(identity)` if the enqueue itself fails.
+    """
+    await increment_active_jobs(identity)
+    await record_job_creation(identity)
 
 
 async def _load_owned_job(
@@ -104,6 +124,10 @@ async def create_merge_job(
                 detail=f"file {fid} is not a PDF",
             )
 
+    identity = identity_for_user(user, x_owner_token)
+    await enforce_jobs_per_hour(identity)
+    await enforce_concurrent_jobs(identity)
+
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     job = Job(
@@ -121,10 +145,17 @@ async def create_merge_job(
     await db.commit()
     await db.refresh(job)
 
-    # Enqueue. In tests CELERY_TASK_ALWAYS_EAGER=1 so this runs in-process.
+    # Reserve a concurrent-jobs slot, then enqueue. In tests
+    # CELERY_TASK_ALWAYS_EAGER=1 so .delay() runs in-process and the
+    # worker decrements before returning.
+    await _reserve_quota_slot(identity)
     from ..workers.tasks.merge import run_merge_job
 
-    run_merge_job.delay(job_id)
+    try:
+        run_merge_job.delay(job_id)
+    except Exception:
+        await decrement_active_jobs(identity)
+        raise
 
     # Re-read in case the eager task already finished.
     await db.refresh(job)
@@ -237,6 +268,10 @@ async def create_split_job(
             detail=f"file {body.file_id} is not a PDF",
         )
 
+    identity = identity_for_user(user, x_owner_token)
+    await enforce_jobs_per_hour(identity)
+    await enforce_concurrent_jobs(identity)
+
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     params: dict = {"mode": body.mode}
@@ -259,9 +294,14 @@ async def create_split_job(
     await db.commit()
     await db.refresh(job)
 
+    await _reserve_quota_slot(identity)
     from ..workers.tasks.split import run_split_job
 
-    run_split_job.delay(job_id)
+    try:
+        run_split_job.delay(job_id)
+    except Exception:
+        await decrement_active_jobs(identity)
+        raise
 
     await db.refresh(job)
     return _job_to_status(job)
@@ -293,6 +333,10 @@ async def create_watermark_job(
             detail=f"file {body.file_id} is not a PDF",
         )
 
+    identity = identity_for_user(user, x_owner_token)
+    await enforce_jobs_per_hour(identity)
+    await enforce_concurrent_jobs(identity)
+
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     params: dict = {
@@ -318,9 +362,14 @@ async def create_watermark_job(
     await db.commit()
     await db.refresh(job)
 
+    await _reserve_quota_slot(identity)
     from ..workers.tasks.watermark import run_watermark_job
 
-    run_watermark_job.delay(job_id)
+    try:
+        run_watermark_job.delay(job_id)
+    except Exception:
+        await decrement_active_jobs(identity)
+        raise
 
     await db.refresh(job)
     return _job_to_status(job)
@@ -355,6 +404,10 @@ async def create_sign_job(
             detail=f"file {body.file_id} is not a PDF",
         )
 
+    identity = identity_for_user(user, x_owner_token)
+    await enforce_jobs_per_hour(identity)
+    await enforce_concurrent_jobs(identity)
+
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     params: dict = {
@@ -385,9 +438,14 @@ async def create_sign_job(
     await db.commit()
     await db.refresh(job)
 
+    await _reserve_quota_slot(identity)
     from ..workers.tasks.sign import run_sign_job
 
-    run_sign_job.delay(job_id)
+    try:
+        run_sign_job.delay(job_id)
+    except Exception:
+        await decrement_active_jobs(identity)
+        raise
 
     await db.refresh(job)
     return _job_to_status(job)
@@ -422,6 +480,10 @@ async def create_edit_job(
             detail=f"file {body.file_id} is not a PDF",
         )
 
+    identity = identity_for_user(user, x_owner_token)
+    await enforce_jobs_per_hour(identity)
+    await enforce_concurrent_jobs(identity)
+
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     # Operations serialize to plain dicts via model_dump; the engine
@@ -446,9 +508,14 @@ async def create_edit_job(
     await db.commit()
     await db.refresh(job)
 
+    await _reserve_quota_slot(identity)
     from ..workers.tasks.edit import run_edit_job
 
-    run_edit_job.delay(job_id)
+    try:
+        run_edit_job.delay(job_id)
+    except Exception:
+        await decrement_active_jobs(identity)
+        raise
 
     await db.refresh(job)
     return _job_to_status(job)
@@ -480,6 +547,10 @@ async def create_compress_job(
             detail=f"file {body.file_id} is not a PDF",
         )
 
+    identity = identity_for_user(user, x_owner_token)
+    await enforce_jobs_per_hour(identity)
+    await enforce_concurrent_jobs(identity)
+
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     job = Job(
@@ -498,9 +569,14 @@ async def create_compress_job(
     await db.commit()
     await db.refresh(job)
 
+    await _reserve_quota_slot(identity)
     from ..workers.tasks.compress import run_compress_job
 
-    run_compress_job.delay(job_id)
+    try:
+        run_compress_job.delay(job_id)
+    except Exception:
+        await decrement_active_jobs(identity)
+        raise
 
     await db.refresh(job)
     return _job_to_status(job)
@@ -547,6 +623,10 @@ async def create_convert_job(
             ),
         )
 
+    identity = identity_for_user(user, x_owner_token)
+    await enforce_jobs_per_hour(identity)
+    await enforce_concurrent_jobs(identity)
+
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     job = Job(
@@ -569,9 +649,14 @@ async def create_convert_job(
     await db.commit()
     await db.refresh(job)
 
+    await _reserve_quota_slot(identity)
     from ..workers.tasks.convert import run_convert_job
 
-    run_convert_job.delay(job_id)
+    try:
+        run_convert_job.delay(job_id)
+    except Exception:
+        await decrement_active_jobs(identity)
+        raise
 
     await db.refresh(job)
     return _job_to_status(job)
@@ -631,6 +716,14 @@ async def create_ocr_job(
             ),
         )
 
+    identity = identity_for_user(user, x_owner_token)
+    await enforce_jobs_per_hour(identity)
+    await enforce_concurrent_jobs(identity)
+    # Stronger pre-check: reject if the job would push us past the
+    # daily OCR-page limit. Worker-side `record_ocr_pages_sync` after
+    # success is the source of truth.
+    await enforce_ocr_pages(identity, additional_pages=page_count)
+
     job_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     job = Job(
@@ -649,9 +742,14 @@ async def create_ocr_job(
     await db.commit()
     await db.refresh(job)
 
+    await _reserve_quota_slot(identity)
     from ..workers.tasks.ocr import run_ocr_job
 
-    run_ocr_job.delay(job_id)
+    try:
+        run_ocr_job.delay(job_id)
+    except Exception:
+        await decrement_active_jobs(identity)
+        raise
 
     await db.refresh(job)
     return _job_to_status(job)

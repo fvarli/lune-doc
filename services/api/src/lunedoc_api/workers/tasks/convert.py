@@ -21,6 +21,7 @@ from ...db import get_sync_session_factory
 from ...engines.convert import ConvertError, convert_file
 from ...models.file import File
 from ...models.job import Job
+from ...quota import decrement_active_jobs_sync, identity_for_job
 from ...settings import get_settings
 from ...storage import get_storage
 from ..celery_app import celery_app
@@ -163,5 +164,6 @@ def run_convert_job(job_id: str) -> dict:
                 shutil.rmtree(scratch, ignore_errors=True)
             job.updated_at = datetime.now(timezone.utc)
             db.commit()
+            decrement_active_jobs_sync(identity_for_job(job))
 
         return {"job_id": job_id, "status": job.status}

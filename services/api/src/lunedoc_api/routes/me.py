@@ -29,6 +29,7 @@ from ..models.me import (
     MeUsageResponse,
 )
 from ..models.user import User
+from ..quota import get_ocr_pages_used_today
 
 router = APIRouter()
 
@@ -174,6 +175,5 @@ async def my_usage(
         total_jobs=total_jobs,
         jobs_by_status={s: int(n) for s, n in by_status_rows},
         jobs_by_tool={t: int(n) for t, n in by_tool_rows},
-        # TODO(phase-4-step-2b-or-later): track per-day OCR page consumption.
-        ocr_pages_used_today=0,
+        ocr_pages_used_today=await get_ocr_pages_used_today(f"user:{user.id}"),
     )
