@@ -1,5 +1,12 @@
 from .auth_challenge import AuthChallenge
 from .file import Base, File, FileMetadata, UploadResponse
+from .me import (
+    MeFileItem,
+    MeFilesList,
+    MeJobItem,
+    MeJobsList,
+    MeUsageResponse,
+)
 from .refresh_token import RefreshToken
 from .user import User
 from .job import (
@@ -41,6 +48,11 @@ __all__ = [
     "Base",
     "File",
     "FileMetadata",
+    "MeFileItem",
+    "MeFilesList",
+    "MeJobItem",
+    "MeJobsList",
+    "MeUsageResponse",
     "RefreshToken",
     "UploadResponse",
     "User",

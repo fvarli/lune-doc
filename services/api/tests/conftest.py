@@ -64,11 +64,30 @@ async def _prepare_db():
 
 
 @pytest_asyncio.fixture(autouse=True)
+async def _truncate_db_per_test() -> AsyncIterator[None]:
+    """Wipe DB state before every test, regardless of whether the test
+    asks for the `db` fixture. Tests that only use `client` (no direct
+    DB access) still hit auth endpoints that read/write the same
+    tables — without this they'd inherit the previous test's rows.
+    """
+    from lunedoc_api.db import get_engine
+
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "TRUNCATE TABLE jobs, files, refresh_tokens, "
+                "auth_challenges, users RESTART IDENTITY CASCADE"
+            )
+        )
+    yield
+
+
+@pytest_asyncio.fixture(autouse=True)
 async def _flush_redis_per_test() -> AsyncIterator[None]:
     """Wipe the test Redis db (15) before each test — rate-limit
-    counters from a prior test must not bleed in. Autouse because
-    tests that don't take the `db` fixture still hit auth endpoints
-    that talk to Redis.
+    counters from a prior test must not bleed in. Autouse for the
+    same reason as `_truncate_db_per_test`.
     """
     try:
         import redis.asyncio as redis_aio
@@ -85,17 +104,10 @@ async def _flush_redis_per_test() -> AsyncIterator[None]:
 
 @pytest_asyncio.fixture
 async def db() -> AsyncIterator[AsyncSession]:
-    """Per-test DB session. Truncates jobs + files + auth tables."""
-    from lunedoc_api.db import get_engine, get_session_factory
-
-    engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "TRUNCATE TABLE jobs, files, refresh_tokens, "
-                "auth_challenges, users RESTART IDENTITY CASCADE"
-            )
-        )
+    """Per-test DB session. Truncate is handled by the autouse fixture
+    above — this just yields a session bound to the cleaned DB.
+    """
+    from lunedoc_api.db import get_session_factory
 
     factory = get_session_factory()
     async with factory() as session:
