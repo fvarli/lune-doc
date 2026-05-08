@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useI18n } from '@lunedoc/i18n';
 import { Logo } from '../logo/Logo';
 import { Icon } from '../icons/Icon';
@@ -10,9 +11,24 @@ interface HeaderProps {
   mobile?: boolean;
   transparent?: boolean;
   active?: string;
+  /**
+   * Optional override for the right-hand area (Sign in / Get started).
+   * Apps that wire auth state pass an auth-aware controls component;
+   * pass an empty fragment to hide the area entirely (e.g. on /signin).
+   * Falls back to the default placeholder buttons when omitted, which
+   * preserves behavior for any consumer that hasn't been updated.
+   */
+  rightSlot?: ReactNode;
 }
 
-export function Header({ lang, setLang, mobile = false, transparent = false, active = '' }: HeaderProps) {
+export function Header({
+  lang,
+  setLang,
+  mobile = false,
+  transparent = false,
+  active = '',
+  rightSlot,
+}: HeaderProps) {
   const { t } = useI18n(lang);
 
   if (mobile) {
@@ -87,8 +103,12 @@ export function Header({ lang, setLang, mobile = false, transparent = false, act
       </nav>
       <div style={{ flex: 1 }} />
       <LangSwitch lang={lang} setLang={setLang} />
-      <button className="pl-btn pl-btn-quiet pl-btn-sm">{t('nav_signin')}</button>
-      <button className="pl-btn pl-btn-primary pl-btn-sm">{t('nav_get_started')}</button>
+      {rightSlot ?? (
+        <>
+          <button className="pl-btn pl-btn-quiet pl-btn-sm">{t('nav_signin')}</button>
+          <button className="pl-btn pl-btn-primary pl-btn-sm">{t('nav_get_started')}</button>
+        </>
+      )}
     </header>
   );
 }

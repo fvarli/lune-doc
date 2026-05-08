@@ -15,6 +15,8 @@ import { HomeLanding } from './landing/HomeLanding';
 import { TOOL_CONFIGS } from './landing/tool-config';
 import type { ToolConfig } from './landing/tool-config';
 import { useLocaleNav } from './landing/use-locale-nav';
+import { SigninPage } from './auth/SigninPage';
+import { AuthVerifyPage } from './auth/AuthVerifyPage';
 
 const TOOL_BY_SLUG: Record<string, ToolConfig> = Object.fromEntries(
   TOOL_CONFIGS.map((c) => [c.slug, c]),
@@ -55,6 +57,13 @@ function Dispatcher() {
 
   if (!slug) {
     return <HomeLanding lang={lang} setLang={setLang} />;
+  }
+
+  if (slug === 'signin') {
+    return <SigninPage lang={lang} setLang={setLang} />;
+  }
+  if (slug === 'auth/verify') {
+    return <AuthVerifyPage lang={lang} setLang={setLang} />;
   }
 
   const config = TOOL_BY_SLUG[slug];
