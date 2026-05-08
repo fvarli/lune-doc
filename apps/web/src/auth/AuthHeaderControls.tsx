@@ -54,6 +54,13 @@ export function AuthHeaderControls({ lang }: AuthHeaderControlsProps) {
 
   return (
     <>
+      <Link
+        to={localized('/dashboard', lang)}
+        className="pl-btn pl-btn-quiet pl-btn-sm"
+        style={{ textDecoration: 'none' }}
+      >
+        {t('nav_dashboard')}
+      </Link>
       <span
         style={{
           fontSize: 13,
