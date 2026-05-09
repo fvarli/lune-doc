@@ -8,11 +8,13 @@ export {
   JobTimeoutError,
   LunedocApiError,
   NotFoundError,
+  QuotaExceededError,
   TooLargeError,
   UnauthorizedError,
   UnsupportedMediaTypeError,
   ValidationError,
 } from './errors';
+export type { QuotaExceededDetail, QuotaName } from './errors';
 export {
   forgetToken,
   getToken,

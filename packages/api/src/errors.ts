@@ -57,6 +57,31 @@ export class GoneError extends LunedocApiError {
   }
 }
 
+export type QuotaName = 'ocr_pages_daily' | 'jobs_per_hour' | 'concurrent_jobs';
+
+export type QuotaExceededDetail = {
+  code: 'quota_exceeded';
+  quota: QuotaName;
+  limit: number;
+  used: number;
+  reset_at: string;
+};
+
+export class QuotaExceededError extends LunedocApiError {
+  quota: QuotaName;
+  limit: number;
+  used: number;
+  resetAt: string;
+  constructor(detail: QuotaExceededDetail) {
+    super(429, undefined, `quota exceeded: ${detail.quota}`);
+    this.name = 'QuotaExceededError';
+    this.quota = detail.quota;
+    this.limit = detail.limit;
+    this.used = detail.used;
+    this.resetAt = detail.reset_at;
+  }
+}
+
 export class UnauthorizedError extends LunedocApiError {
   constructor(detail?: string) {
     super(401, detail);
@@ -92,11 +117,19 @@ export class BackendUnreachableError extends LunedocApiError {
 /** Build a typed error from a non-2xx Response. */
 export async function fromResponse(resp: Response): Promise<LunedocApiError> {
   let detail: string | undefined;
+  let detailObj: Record<string, unknown> | undefined;
   try {
     const body = await resp.clone().json();
-    detail = typeof body?.detail === 'string' ? body.detail : undefined;
+    if (typeof body?.detail === 'string') {
+      detail = body.detail;
+    } else if (body?.detail && typeof body.detail === 'object') {
+      detailObj = body.detail as Record<string, unknown>;
+    }
   } catch {
     detail = (await resp.clone().text()) || undefined;
+  }
+  if (resp.status === 429 && detailObj?.code === 'quota_exceeded') {
+    return new QuotaExceededError(detailObj as unknown as QuotaExceededDetail);
   }
   switch (resp.status) {
     case 401:
