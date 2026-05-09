@@ -69,12 +69,22 @@ export function DashboardPage({ lang, setLang }: DashboardPageProps) {
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+  const [jobsHasMore, setJobsHasMore] = useState(false);
+  const [jobsLoadingMore, setJobsLoadingMore] = useState(false);
+  const [jobsLoadMoreErrored, setJobsLoadMoreErrored] = useState(false);
+  const [filesHasMore, setFilesHasMore] = useState(false);
+  const [filesLoadingMore, setFilesLoadingMore] = useState(false);
+  const [filesLoadMoreErrored, setFilesLoadMoreErrored] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     let cancelled = false;
     setLoading(true);
     setErrored(false);
+    setJobsLoadMoreErrored(false);
+    setFilesLoadMoreErrored(false);
+    setJobsLoadingMore(false);
+    setFilesLoadingMore(false);
     void withAccessToken(async (token) => {
       const client = getClient();
       const [u, j, f] = await Promise.all([
@@ -86,6 +96,8 @@ export function DashboardPage({ lang, setLang }: DashboardPageProps) {
       setUsage(u);
       setJobs(j);
       setFiles(f);
+      setJobsHasMore(j.items.length === PAGE_LIMIT);
+      setFilesHasMore(f.items.length === PAGE_LIMIT);
     })
       .catch(() => {
         if (!cancelled) setErrored(true);
@@ -97,6 +109,54 @@ export function DashboardPage({ lang, setLang }: DashboardPageProps) {
       cancelled = true;
     };
   }, [isAuthenticated, withAccessToken, reloadTick]);
+
+  async function loadMoreJobs() {
+    if (!jobs || jobsLoadingMore) return;
+    setJobsLoadingMore(true);
+    setJobsLoadMoreErrored(false);
+    try {
+      const next = await withAccessToken((token) =>
+        getClient().getMeJobs(token, {
+          limit: PAGE_LIMIT,
+          offset: jobs.items.length,
+        }),
+      );
+      setJobs((prev) =>
+        prev
+          ? { ...prev, items: [...prev.items, ...next.items], offset: next.offset }
+          : prev,
+      );
+      setJobsHasMore(next.items.length === PAGE_LIMIT);
+    } catch {
+      setJobsLoadMoreErrored(true);
+    } finally {
+      setJobsLoadingMore(false);
+    }
+  }
+
+  async function loadMoreFiles() {
+    if (!files || filesLoadingMore) return;
+    setFilesLoadingMore(true);
+    setFilesLoadMoreErrored(false);
+    try {
+      const next = await withAccessToken((token) =>
+        getClient().getMeFiles(token, {
+          limit: PAGE_LIMIT,
+          offset: files.items.length,
+        }),
+      );
+      setFiles((prev) =>
+        prev
+          ? { ...prev, items: [...prev.items, ...next.items], offset: next.offset }
+          : prev,
+      );
+      setFilesHasMore(next.items.length === PAGE_LIMIT);
+    } catch {
+      setFilesLoadMoreErrored(true);
+    } finally {
+      setFilesLoadingMore(false);
+    }
+  }
 
   if (authLoading) {
     return (
@@ -167,7 +227,19 @@ export function DashboardPage({ lang, setLang }: DashboardPageProps) {
         {loading && !jobs ? (
           <p style={{ color: 'var(--fg-muted)' }}>{t('dashboard_loading')}</p>
         ) : jobs && jobs.items.length > 0 ? (
-          <JobsList items={jobs.items} t={t} lang={lang} />
+          <>
+            <JobsList items={jobs.items} t={t} lang={lang} />
+            <LoadMoreFooter
+              hasMore={jobsHasMore}
+              loading={jobsLoadingMore}
+              errored={jobsLoadMoreErrored}
+              onLoadMore={loadMoreJobs}
+              loadMoreLabel={t('dashboard_load_more_jobs')}
+              loadingLabel={t('dashboard_loading')}
+              failedLabel={t('dashboard_load_more_failed')}
+              retryLabel={t('dashboard_retry')}
+            />
+          </>
         ) : jobs ? (
           <EmptyCard text={t('dashboard_no_jobs')} />
         ) : null}
@@ -178,12 +250,81 @@ export function DashboardPage({ lang, setLang }: DashboardPageProps) {
         {loading && !files ? (
           <p style={{ color: 'var(--fg-muted)' }}>{t('dashboard_loading')}</p>
         ) : files && files.items.length > 0 ? (
-          <FilesList items={files.items} t={t} lang={lang} />
+          <>
+            <FilesList items={files.items} t={t} lang={lang} />
+            <LoadMoreFooter
+              hasMore={filesHasMore}
+              loading={filesLoadingMore}
+              errored={filesLoadMoreErrored}
+              onLoadMore={loadMoreFiles}
+              loadMoreLabel={t('dashboard_load_more_files')}
+              loadingLabel={t('dashboard_loading')}
+              failedLabel={t('dashboard_load_more_failed')}
+              retryLabel={t('dashboard_retry')}
+            />
+          </>
         ) : files ? (
           <EmptyCard text={t('dashboard_no_files')} />
         ) : null}
       </section>
     </Shell>
+  );
+}
+
+function LoadMoreFooter({
+  hasMore,
+  loading,
+  errored,
+  onLoadMore,
+  loadMoreLabel,
+  loadingLabel,
+  failedLabel,
+  retryLabel,
+}: {
+  hasMore: boolean;
+  loading: boolean;
+  errored: boolean;
+  onLoadMore: () => void;
+  loadMoreLabel: string;
+  loadingLabel: string;
+  failedLabel: string;
+  retryLabel: string;
+}) {
+  if (errored) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          marginTop: 12,
+          fontSize: 13,
+        }}
+      >
+        <span style={{ color: 'var(--fg-muted)' }}>{failedLabel}</span>
+        <button
+          type="button"
+          className="pl-btn pl-btn-quiet pl-btn-sm"
+          onClick={onLoadMore}
+          disabled={loading}
+        >
+          {retryLabel}
+        </button>
+      </div>
+    );
+  }
+  if (!hasMore) return null;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <button
+        type="button"
+        className="pl-btn pl-btn-quiet pl-btn-sm"
+        onClick={onLoadMore}
+        disabled={loading}
+      >
+        {loading ? loadingLabel : loadMoreLabel}
+      </button>
+    </div>
   );
 }
 
