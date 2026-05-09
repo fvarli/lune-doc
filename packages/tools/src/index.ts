@@ -6,3 +6,8 @@ export { OCRToolPage } from './ocr/OCRToolPage';
 export { EditPDFToolPage } from './edit/EditPDFToolPage';
 export { CompressToolPage } from './compress/CompressToolPage';
 export { ConvertToolPage } from './convert/ConvertToolPage';
+export {
+  QuotaBanner,
+  isQuotaExceededError,
+  quotaMessage,
+} from './shared/quota';
