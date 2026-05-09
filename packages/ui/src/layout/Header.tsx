@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useI18n } from '@lunedoc/i18n';
 import { Logo } from '../logo/Logo';
 import { Icon } from '../icons/Icon';
@@ -30,30 +30,64 @@ export function Header({
   rightSlot,
 }: HeaderProps) {
   const { t } = useI18n(lang);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (mobile) {
+    const menuLabel = t('header_menu');
+    const fallback = (
+      <>
+        <button className="pl-btn pl-btn-quiet pl-btn-sm">{t('nav_signin')}</button>
+        <button className="pl-btn pl-btn-primary pl-btn-sm">{t('nav_get_started')}</button>
+      </>
+    );
     return (
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '12px 16px',
-          borderBottom: '1px solid var(--line)',
-          background: 'var(--bg)',
-          position: 'sticky',
-          top: 0,
-          zIndex: 5,
-        }}
-      >
-        <Logo size={15} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <LangSwitch lang={lang} setLang={setLang} compact />
-          <button className="pl-btn pl-btn-quiet" style={{ width: 36, padding: 0 }} aria-label="Menu">
-            <Icon name="menu" />
-          </button>
-        </div>
-      </header>
+      <>
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 16px',
+            borderBottom: '1px solid var(--line)',
+            background: 'var(--bg)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 5,
+          }}
+        >
+          <Logo size={15} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <LangSwitch lang={lang} setLang={setLang} compact />
+            <button
+              type="button"
+              className="pl-btn pl-btn-quiet"
+              style={{ width: 36, padding: 0 }}
+              aria-label={menuLabel}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="lune-mobile-header-menu"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+            >
+              <Icon name={mobileMenuOpen ? 'close' : 'menu'} />
+            </button>
+          </div>
+        </header>
+        {mobileMenuOpen ? (
+          <nav
+            id="lune-mobile-header-menu"
+            aria-label={menuLabel}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              padding: '12px 16px',
+              borderBottom: '1px solid var(--line)',
+              background: 'var(--bg)',
+            }}
+          >
+            {rightSlot ?? fallback}
+          </nav>
+        ) : null}
+      </>
     );
   }
 
