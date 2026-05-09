@@ -5,6 +5,7 @@ import {
   JobTimeoutError,
   LunedocApiError,
   NotFoundError,
+  QuotaExceededError,
   TooLargeError,
   UnsupportedMediaTypeError,
   ValidationError,
@@ -18,6 +19,7 @@ import {
 import { useI18n, type Lang } from '@lunedoc/i18n';
 import { DropZone, Icon, PdfThumb } from '@lunedoc/ui';
 import { btnGhost } from '../_internal/btnGhost';
+import { QuotaBanner, isQuotaExceededError } from '../shared/quota';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -40,12 +42,14 @@ export function SplitToolPage({ lang }: SplitToolPageProps) {
   const [ranges, setRanges] = useState<SplitRange[]>([{ from: 1, to: 1 }]);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<QuotaExceededError | null>(null);
   const [outputs, setOutputs] = useState<ResultFile[]>([]);
 
   async function handleFiles(picked: File[]) {
     const raw = picked[0];
     if (!raw) return;
     setError(null);
+    setQuotaError(null);
     setStage('uploading');
     try {
       const uploaded = await getClient().uploadFile(raw);
@@ -60,6 +64,11 @@ export function SplitToolPage({ lang }: SplitToolPageProps) {
       setFile(uploaded);
       setStage('idle');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(uploadErrorKey(e));
       setStage('error');
     }
@@ -134,6 +143,7 @@ export function SplitToolPage({ lang }: SplitToolPageProps) {
     }
 
     setError(null);
+    setQuotaError(null);
     setStage('processing');
     const client = getClient();
     try {
@@ -145,6 +155,11 @@ export function SplitToolPage({ lang }: SplitToolPageProps) {
       setOutputs(result.outputs);
       setStage('done');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(jobErrorKey(e));
       setStage('error');
     }
@@ -182,6 +197,7 @@ export function SplitToolPage({ lang }: SplitToolPageProps) {
     setRanges([{ from: 1, to: 1 }]);
     setMode('range');
     setError(null);
+    setQuotaError(null);
     setStage('idle');
   }
 
@@ -248,21 +264,25 @@ export function SplitToolPage({ lang }: SplitToolPageProps) {
             </div>
           </div>
 
-          {error && (
-            <div
-              role="alert"
-              style={{
-                marginBottom: 16,
-                padding: 12,
-                borderRadius: 10,
-                background: 'oklch(0.96 0.04 30)',
-                color: 'oklch(0.40 0.18 30)',
-                border: '1px solid oklch(0.85 0.1 30)',
-                fontSize: 13,
-              }}
-            >
-              {t(error)}
-            </div>
+          {quotaError ? (
+            <QuotaBanner error={quotaError} lang={lang} />
+          ) : (
+            error && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: 'oklch(0.96 0.04 30)',
+                  color: 'oklch(0.40 0.18 30)',
+                  border: '1px solid oklch(0.85 0.1 30)',
+                  fontSize: 13,
+                }}
+              >
+                {t(error)}
+              </div>
+            )
           )}
 
           {!file ? (

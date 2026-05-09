@@ -25,6 +25,8 @@ function localized(path: string, lang: Lang): string {
 type Translator = (key: string) => string;
 
 const PAGE_LIMIT = 20;
+// TODO: paid tiers will make this server-driven via /me/usage; hardcoded for now.
+const OCR_DAILY_LIMIT = 20;
 
 const SECTION_TITLE: CSSProperties = {
   fontSize: 18,
@@ -266,9 +268,10 @@ function UsageSummary({
         label={t('dashboard_total_jobs')}
         value={String(usage.total_jobs)}
       />
-      <Stat
-        label={t('dashboard_ocr_pages_today')}
-        value={String(usage.ocr_pages_used_today)}
+      <OcrQuotaCard
+        used={usage.ocr_pages_used_today}
+        limit={OCR_DAILY_LIMIT}
+        t={t}
       />
       <ChipGroup
         label={t('dashboard_jobs_by_status')}
@@ -287,6 +290,66 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="pl-card" style={{ padding: 16 }}>
       <p style={STAT_LABEL}>{label}</p>
       <p style={STAT_VALUE}>{value}</p>
+    </div>
+  );
+}
+
+function OcrQuotaCard({
+  used,
+  limit,
+  t,
+}: {
+  used: number;
+  limit: number;
+  t: Translator;
+}) {
+  const pct = Math.min(100, limit > 0 ? (used / limit) * 100 : 0);
+  const exceeded = used >= limit;
+  const fill = exceeded ? 'oklch(0.55 0.18 30)' : 'var(--accent, oklch(0.55 0.16 290))';
+  return (
+    <div className="pl-card" style={{ padding: 16 }}>
+      <p style={STAT_LABEL}>{t('dashboard_ocr_quota_label')}</p>
+      <p style={STAT_VALUE}>
+        {used} <span style={{ fontSize: 16, color: 'var(--fg-muted)', fontWeight: 500 }}>/ {limit}</span>
+      </p>
+      <div
+        aria-hidden="true"
+        style={{
+          marginTop: 10,
+          height: 6,
+          borderRadius: 999,
+          background: 'var(--bg-muted, rgba(0,0,0,0.06))',
+          overflow: 'hidden',
+        }}
+      >
+        <div
+          style={{
+            width: `${pct}%`,
+            height: '100%',
+            background: fill,
+            transition: 'width 0.2s ease',
+          }}
+        />
+      </div>
+      {exceeded && (
+        <div
+          role="status"
+          style={{
+            marginTop: 10,
+            padding: '8px 10px',
+            borderRadius: 8,
+            background: 'oklch(0.96 0.04 30)',
+            color: 'oklch(0.40 0.18 30)',
+            border: '1px solid oklch(0.85 0.1 30)',
+            fontSize: 12,
+            lineHeight: 1.5,
+          }}
+        >
+          <div style={{ fontWeight: 600 }}>{t('quota_title')}</div>
+          <div>{t('quota_ocr_pages_daily')}</div>
+          <div style={{ marginTop: 6, opacity: 0.85 }}>{t('quota_upgrade_soon')}</div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   JobTimeoutError,
   LunedocApiError,
   NotFoundError,
+  QuotaExceededError,
   TooLargeError,
   UnsupportedMediaTypeError,
   ValidationError,
@@ -17,6 +18,7 @@ import {
 } from '@lunedoc/api';
 import { useI18n, type Lang } from '@lunedoc/i18n';
 import { DropZone, Icon, type IconName } from '@lunedoc/ui';
+import { QuotaBanner, isQuotaExceededError } from '../shared/quota';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const MAX_SIGNATURE_IMAGE_BYTES = 1_500_000; // 1.5 MB raw → ~2 MB base64
@@ -57,6 +59,7 @@ export function SignToolPage({ lang }: SignToolPageProps) {
   const [signatureImageName, setSignatureImageName] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<QuotaExceededError | null>(null);
   const [result, setResult] = useState<SignedResult | null>(null);
 
   const sigImageInputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +79,7 @@ export function SignToolPage({ lang }: SignToolPageProps) {
     const raw = picked[0];
     if (!raw) return;
     setError(null);
+    setQuotaError(null);
     setStage('uploading');
     try {
       const uploaded = await getClient().uploadFile(raw);
@@ -90,6 +94,11 @@ export function SignToolPage({ lang }: SignToolPageProps) {
       setFile(uploaded);
       setStage('idle');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(uploadErrorKey(e));
       setStage('error');
     }
@@ -130,6 +139,7 @@ export function SignToolPage({ lang }: SignToolPageProps) {
   async function runSign() {
     if (!file) return;
     setError(null);
+    setQuotaError(null);
     setStage('processing');
     const client = getClient();
     const token = file.owner_token;
@@ -183,6 +193,11 @@ export function SignToolPage({ lang }: SignToolPageProps) {
       setResult({ file_id: out.file_id, name: out.name, size: out.size });
       setStage('done');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(jobErrorKey(e));
       setStage('error');
     }
@@ -212,6 +227,7 @@ export function SignToolPage({ lang }: SignToolPageProps) {
     setFile(null);
     setResult(null);
     setError(null);
+    setQuotaError(null);
     setName(t('sign_typed_default'));
     setMethod('type');
     setSignatureImageData(null);
@@ -308,21 +324,25 @@ export function SignToolPage({ lang }: SignToolPageProps) {
               'this stamps a visible signature on the page. It is not a cryptographic e-signature and has no inherent legal binding. For binding e-signatures, use a certified provider.'}
           </div>
 
-          {error && (
-            <div
-              role="alert"
-              style={{
-                marginBottom: 16,
-                padding: 12,
-                borderRadius: 10,
-                background: 'oklch(0.96 0.04 30)',
-                color: 'oklch(0.40 0.18 30)',
-                border: '1px solid oklch(0.85 0.1 30)',
-                fontSize: 13,
-              }}
-            >
-              {t(error)}
-            </div>
+          {quotaError ? (
+            <QuotaBanner error={quotaError} lang={lang} />
+          ) : (
+            error && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: 'oklch(0.96 0.04 30)',
+                  color: 'oklch(0.40 0.18 30)',
+                  border: '1px solid oklch(0.85 0.1 30)',
+                  fontSize: 13,
+                }}
+              >
+                {t(error)}
+              </div>
+            )
           )}
 
           {!file ? (

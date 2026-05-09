@@ -385,5 +385,14 @@
   "dashboard_file_name": "Name",
   "dashboard_file_type": "Type",
   "dashboard_file_size": "Size",
-  "dashboard_result_meta": "Job details"
+  "dashboard_result_meta": "Job details",
+  "dashboard_ocr_quota_label": "OCR pages today",
+  "quota_title": "Limit reached",
+  "quota_ocr_pages_daily": "You have used your OCR pages for today.",
+  "quota_jobs_per_hour": "You have reached the hourly job limit.",
+  "quota_concurrent_jobs": "You already have too many active jobs. Wait for one to finish.",
+  "quota_resets_at": "Resets at",
+  "quota_upgrade_cta": "Upgrade for more",
+  "quota_upgrade_soon": "Upgrade plans are coming soon.",
+  "quota_generic": "A usage limit was reached. Try again later."
 }

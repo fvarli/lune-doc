@@ -385,5 +385,14 @@
   "dashboard_file_name": "Ad",
   "dashboard_file_type": "Tür",
   "dashboard_file_size": "Boyut",
-  "dashboard_result_meta": "İş ayrıntıları"
+  "dashboard_result_meta": "İş ayrıntıları",
+  "dashboard_ocr_quota_label": "Bugünkü OCR sayfaları",
+  "quota_title": "Sınıra ulaşıldı",
+  "quota_ocr_pages_daily": "Bugünkü OCR sayfa hakkını kullandın.",
+  "quota_jobs_per_hour": "Saatlik iş sınırına ulaşıldı.",
+  "quota_concurrent_jobs": "Aynı anda çok fazla aktif işin var. Birinin bitmesini bekle.",
+  "quota_resets_at": "Sıfırlanma",
+  "quota_upgrade_cta": "Daha fazlası için yükselt",
+  "quota_upgrade_soon": "Yükseltme planları yakında.",
+  "quota_generic": "Bir kullanım sınırına ulaşıldı. Daha sonra tekrar dene."
 }

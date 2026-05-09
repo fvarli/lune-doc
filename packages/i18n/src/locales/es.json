@@ -385,5 +385,14 @@
   "dashboard_file_name": "Nombre",
   "dashboard_file_type": "Tipo",
   "dashboard_file_size": "Tamaño",
-  "dashboard_result_meta": "Detalles del trabajo"
+  "dashboard_result_meta": "Detalles del trabajo",
+  "dashboard_ocr_quota_label": "Páginas OCR hoy",
+  "quota_title": "Límite alcanzado",
+  "quota_ocr_pages_daily": "Has usado tus páginas de OCR de hoy.",
+  "quota_jobs_per_hour": "Has alcanzado el límite de trabajos por hora.",
+  "quota_concurrent_jobs": "Ya tienes demasiados trabajos activos. Espera a que termine alguno.",
+  "quota_resets_at": "Se restablece a las",
+  "quota_upgrade_cta": "Mejora para más",
+  "quota_upgrade_soon": "Los planes de mejora llegarán pronto.",
+  "quota_generic": "Se alcanzó un límite de uso. Inténtalo más tarde."
 }

@@ -6,6 +6,7 @@ import {
   JobTimeoutError,
   LunedocApiError,
   NotFoundError,
+  QuotaExceededError,
   TooLargeError,
   UnsupportedMediaTypeError,
   ValidationError,
@@ -19,6 +20,7 @@ import {
 } from '@lunedoc/api';
 import { useI18n, type Lang } from '@lunedoc/i18n';
 import { DropZone, Icon } from '@lunedoc/ui';
+import { QuotaBanner, isQuotaExceededError } from '../shared/quota';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -65,6 +67,7 @@ export function ConvertToolPage({ lang }: ConvertToolPageProps) {
   const [imageDpi, setImageDpi] = useState<number>(150);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<QuotaExceededError | null>(null);
   const [outputs, setOutputs] = useState<ResultFile[]>([]);
 
   // When the user uploads, auto-detect from_format from the MIME and
@@ -88,6 +91,7 @@ export function ConvertToolPage({ lang }: ConvertToolPageProps) {
     const raw = picked[0];
     if (!raw) return;
     setError(null);
+    setQuotaError(null);
     setStage('uploading');
     try {
       const uploaded = await getClient().uploadFile(raw);
@@ -102,6 +106,11 @@ export function ConvertToolPage({ lang }: ConvertToolPageProps) {
       setFile(uploaded);
       setStage('idle');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(uploadErrorKey(e));
       setStage('error');
     }
@@ -117,6 +126,7 @@ export function ConvertToolPage({ lang }: ConvertToolPageProps) {
   async function runConvert() {
     if (!file || !pairValid) return;
     setError(null);
+    setQuotaError(null);
     setStage('processing');
     const client = getClient();
     const token = file.owner_token;
@@ -136,6 +146,11 @@ export function ConvertToolPage({ lang }: ConvertToolPageProps) {
       setOutputs(result.outputs);
       setStage('done');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(jobErrorKey(e));
       setStage('error');
     }
@@ -165,6 +180,7 @@ export function ConvertToolPage({ lang }: ConvertToolPageProps) {
     setFile(null);
     setOutputs([]);
     setError(null);
+    setQuotaError(null);
     setFrom('PDF');
     setTo('JPG');
     setImageDpi(150);
@@ -253,21 +269,25 @@ export function ConvertToolPage({ lang }: ConvertToolPageProps) {
               'image directions are lossless. PDF → DOCX/PPTX preserves text but layout often shifts. PDF → XLSX is not supported because spreadsheets cannot be reliably reconstructed from PDF.'}
           </div>
 
-          {error && (
-            <div
-              role="alert"
-              style={{
-                marginBottom: 16,
-                padding: 12,
-                borderRadius: 10,
-                background: 'oklch(0.96 0.04 30)',
-                color: 'oklch(0.40 0.18 30)',
-                border: '1px solid oklch(0.85 0.1 30)',
-                fontSize: 13,
-              }}
-            >
-              {t(error)}
-            </div>
+          {quotaError ? (
+            <QuotaBanner error={quotaError} lang={lang} />
+          ) : (
+            error && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: 'oklch(0.96 0.04 30)',
+                  color: 'oklch(0.40 0.18 30)',
+                  border: '1px solid oklch(0.85 0.1 30)',
+                  fontSize: 13,
+                }}
+              >
+                {t(error)}
+              </div>
+            )
           )}
 
           {!file ? (

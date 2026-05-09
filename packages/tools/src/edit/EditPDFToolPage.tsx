@@ -5,6 +5,7 @@ import {
   JobTimeoutError,
   LunedocApiError,
   NotFoundError,
+  QuotaExceededError,
   TooLargeError,
   UnsupportedMediaTypeError,
   ValidationError,
@@ -18,6 +19,7 @@ import {
 import { useI18n, type Lang } from '@lunedoc/i18n';
 import { DropZone, Icon } from '@lunedoc/ui';
 import type { IconName } from '@lunedoc/ui';
+import { QuotaBanner, isQuotaExceededError } from '../shared/quota';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -60,6 +62,7 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
   const [operations, setOperations] = useState<EditOperation[]>([]);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<QuotaExceededError | null>(null);
   const [result, setResult] = useState<EditedResult | null>(null);
 
   useEffect(() => {
@@ -77,6 +80,7 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
     const raw = picked[0];
     if (!raw) return;
     setError(null);
+    setQuotaError(null);
     setStage('uploading');
     try {
       const uploaded = await getClient().uploadFile(raw);
@@ -91,6 +95,11 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
       setFile(uploaded);
       setStage('idle');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(uploadErrorKey(e));
       setStage('error');
     }
@@ -158,6 +167,7 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
   async function runEdit() {
     if (!file || operations.length === 0) return;
     setError(null);
+    setQuotaError(null);
     setStage('processing');
     const client = getClient();
     const token = file.owner_token;
@@ -174,6 +184,11 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
       setResult({ file_id: out.file_id, name: out.name, size: out.size });
       setStage('done');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(jobErrorKey(e));
       setStage('error');
     }
@@ -203,6 +218,7 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
     setFile(null);
     setResult(null);
     setError(null);
+    setQuotaError(null);
     setOperations([]);
     setText(t('edit_text_default'));
     setTool('text_overlay');
@@ -292,21 +308,25 @@ export function EditPDFToolPage({ lang }: EditPDFToolPageProps) {
               'this adds visible text, highlights, redactions, or shapes on top of pages. It does not reflow or rewrite the original text content. Redactions truly remove the underlying text from the file.'}
           </div>
 
-          {error && (
-            <div
-              role="alert"
-              style={{
-                marginBottom: 16,
-                padding: 12,
-                borderRadius: 10,
-                background: 'oklch(0.96 0.04 30)',
-                color: 'oklch(0.40 0.18 30)',
-                border: '1px solid oklch(0.85 0.1 30)',
-                fontSize: 13,
-              }}
-            >
-              {t(error)}
-            </div>
+          {quotaError ? (
+            <QuotaBanner error={quotaError} lang={lang} />
+          ) : (
+            error && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: 'oklch(0.96 0.04 30)',
+                  color: 'oklch(0.40 0.18 30)',
+                  border: '1px solid oklch(0.85 0.1 30)',
+                  fontSize: 13,
+                }}
+              >
+                {t(error)}
+              </div>
+            )
           )}
 
           {!file ? (

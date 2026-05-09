@@ -5,6 +5,7 @@ import {
   JobTimeoutError,
   LunedocApiError,
   NotFoundError,
+  QuotaExceededError,
   TooLargeError,
   UnsupportedMediaTypeError,
   ValidationError,
@@ -17,6 +18,7 @@ import {
 } from '@lunedoc/api';
 import { useI18n, type Lang } from '@lunedoc/i18n';
 import { DropZone, Icon } from '@lunedoc/ui';
+import { QuotaBanner, isQuotaExceededError } from '../shared/quota';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -58,6 +60,7 @@ export function WatermarkToolPage({ lang }: WatermarkToolPageProps) {
   const [rotation, setRotation] = useState<number>(45); // UI degrees (clockwise)
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<QuotaExceededError | null>(null);
   const [result, setResult] = useState<WatermarkResult | null>(null);
 
   // Re-seed default text if locale changes mid-session.
@@ -91,6 +94,7 @@ export function WatermarkToolPage({ lang }: WatermarkToolPageProps) {
     const raw = picked[0];
     if (!raw) return;
     setError(null);
+    setQuotaError(null);
     setStage('uploading');
     try {
       const uploaded = await getClient().uploadFile(raw);
@@ -105,6 +109,11 @@ export function WatermarkToolPage({ lang }: WatermarkToolPageProps) {
       setFile(uploaded);
       setStage('idle');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(uploadErrorKey(e));
       setStage('error');
     }
@@ -120,6 +129,7 @@ export function WatermarkToolPage({ lang }: WatermarkToolPageProps) {
   async function runWatermark() {
     if (!file) return;
     setError(null);
+    setQuotaError(null);
     setStage('processing');
     const client = getClient();
     const token = file.owner_token;
@@ -144,6 +154,11 @@ export function WatermarkToolPage({ lang }: WatermarkToolPageProps) {
       setResult({ file_id: out.file_id, name: out.name, size: out.size });
       setStage('done');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(jobErrorKey(e));
       setStage('error');
     }
@@ -173,6 +188,7 @@ export function WatermarkToolPage({ lang }: WatermarkToolPageProps) {
     setFile(null);
     setResult(null);
     setError(null);
+    setQuotaError(null);
     setText(t('watermark_text_default'));
     setPosition('center');
     setOpacity(30);
@@ -224,21 +240,25 @@ export function WatermarkToolPage({ lang }: WatermarkToolPageProps) {
             </div>
           </div>
 
-          {error && (
-            <div
-              role="alert"
-              style={{
-                marginBottom: 16,
-                padding: 12,
-                borderRadius: 10,
-                background: 'oklch(0.96 0.04 30)',
-                color: 'oklch(0.40 0.18 30)',
-                border: '1px solid oklch(0.85 0.1 30)',
-                fontSize: 13,
-              }}
-            >
-              {t(error)}
-            </div>
+          {quotaError ? (
+            <QuotaBanner error={quotaError} lang={lang} />
+          ) : (
+            error && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: 'oklch(0.96 0.04 30)',
+                  color: 'oklch(0.40 0.18 30)',
+                  border: '1px solid oklch(0.85 0.1 30)',
+                  fontSize: 13,
+                }}
+              >
+                {t(error)}
+              </div>
+            )
           )}
 
           {!file ? (

@@ -5,6 +5,7 @@ import {
   JobTimeoutError,
   LunedocApiError,
   NotFoundError,
+  QuotaExceededError,
   TooLargeError,
   UnsupportedMediaTypeError,
   forgetToken,
@@ -16,6 +17,7 @@ import {
 import { useI18n, type Lang } from '@lunedoc/i18n';
 import { DropZone, Icon, PdfThumb } from '@lunedoc/ui';
 import { btnGhost } from '../_internal/btnGhost';
+import { QuotaBanner, isQuotaExceededError } from '../shared/quota';
 
 const MAX_BYTES = 50 * 1024 * 1024;
 
@@ -36,6 +38,7 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<QuotaExceededError | null>(null);
   const [result, setResult] = useState<MergedResult | null>(null);
   const totalMB = files
     .reduce((s, f) => s + f.size / (1024 * 1024), 0)
@@ -65,6 +68,7 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
 
   async function handleFiles(picked: File[]) {
     setError(null);
+    setQuotaError(null);
     setStage('uploading');
     const client = getClient();
     try {
@@ -86,6 +90,11 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
       }
       setStage('idle');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(uploadErrorKey(e));
       setStage('error');
     }
@@ -101,6 +110,7 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
   async function runMerge() {
     if (files.length < 2 || !sharedTokenRef.current) return;
     setError(null);
+    setQuotaError(null);
     setStage('processing');
     const client = getClient();
     const token = sharedTokenRef.current;
@@ -117,6 +127,11 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
       saveToken(out.file_id, token);
       setStage('done');
     } catch (e) {
+      if (isQuotaExceededError(e)) {
+        setQuotaError(e);
+        setStage('error');
+        return;
+      }
       setError(jobErrorKey(e));
       setStage('error');
     }
@@ -149,6 +164,7 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
     setFiles([]);
     setResult(null);
     setError(null);
+    setQuotaError(null);
     sharedTokenRef.current = null;
     setStage('idle');
   }
@@ -216,21 +232,25 @@ export function MergeToolPage({ lang }: MergeToolPageProps) {
             </div>
           </div>
 
-          {error && (
-            <div
-              role="alert"
-              style={{
-                marginBottom: 16,
-                padding: 12,
-                borderRadius: 10,
-                background: 'oklch(0.96 0.04 30)',
-                color: 'oklch(0.40 0.18 30)',
-                border: '1px solid oklch(0.85 0.1 30)',
-                fontSize: 13,
-              }}
-            >
-              {t(error)}
-            </div>
+          {quotaError ? (
+            <QuotaBanner error={quotaError} lang={lang} />
+          ) : (
+            error && (
+              <div
+                role="alert"
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: 'oklch(0.96 0.04 30)',
+                  color: 'oklch(0.40 0.18 30)',
+                  border: '1px solid oklch(0.85 0.1 30)',
+                  fontSize: 13,
+                }}
+              >
+                {t(error)}
+              </div>
+            )
           )}
 
           <div className="pl-card" style={{ padding: 24 }}>
