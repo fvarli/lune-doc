@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { Routes, Route } from 'react-router-dom';
 import { LunedocApiError } from '@lunedoc/api';
 import type {
+  MeFileItem,
   MeFilesResponse,
+  MeJobItem,
   MeJobsResponse,
   MeUsageResponse,
   TokenResponse,
@@ -49,6 +51,39 @@ function emptyJobs(): MeJobsResponse {
 
 function emptyFiles(): MeFilesResponse {
   return { items: [], limit: 20, offset: 0, total: 0 };
+}
+
+function makeJob(id: string): MeJobItem {
+  return {
+    job_id: id,
+    tool: 'compress',
+    status: 'done',
+    input_file_ids: [],
+    output_file_ids: [],
+    error: null,
+    result_meta: null,
+    created_at: '2026-05-09T10:00:00Z',
+    updated_at: '2026-05-09T10:00:00Z',
+  };
+}
+
+function makeFile(id: string): MeFileItem {
+  return {
+    file_id: id,
+    name: `${id}.pdf`,
+    mime: 'application/pdf',
+    size: 1234,
+    expires_at: '2026-05-09T11:00:00Z',
+    created_at: '2026-05-09T10:00:00Z',
+  };
+}
+
+function jobsPage(items: MeJobItem[], offset = 0): MeJobsResponse {
+  return { items, limit: 20, offset, total: items.length };
+}
+
+function filesPage(items: MeFileItem[], offset = 0): MeFilesResponse {
+  return { items, limit: 20, offset, total: items.length };
 }
 
 function seedAuthenticated() {
@@ -272,4 +307,151 @@ describe('DashboardPage', () => {
 
     expect(document.body.textContent).not.toMatch(/owner_token_hash/i);
   });
+
+  it('appends rows when "Load more jobs" is clicked', async () => {
+    seedAuthenticated();
+    const firstPage = Array.from({ length: 20 }, (_, i) => makeJob(`j${i}`));
+    const secondPage = Array.from({ length: 5 }, (_, i) => makeJob(`j${20 + i}`));
+    getMockClient().getMeUsage.mockResolvedValueOnce(emptyUsage());
+    getMockClient().getMeJobs
+      .mockResolvedValueOnce(jobsPage(firstPage))
+      .mockResolvedValueOnce(jobsPage(secondPage, 20));
+    getMockClient().getMeFiles.mockResolvedValueOnce(emptyFiles());
+
+    renderDashboard('en');
+    const t = createTranslator('en');
+
+    const loadMore = await screen.findByRole('button', {
+      name: t('dashboard_load_more_jobs'),
+    });
+    const jobsSection = sectionFor(t('dashboard_recent_jobs'));
+    expect(within(jobsSection).getAllByRole('listitem')).toHaveLength(20);
+
+    const user = makeUser();
+    await user.click(loadMore);
+
+    await waitFor(() =>
+      expect(within(jobsSection).getAllByRole('listitem')).toHaveLength(25),
+    );
+    expect(getMockClient().getMeJobs).toHaveBeenLastCalledWith('at-1', {
+      limit: 20,
+      offset: 20,
+    });
+    expect(
+      screen.queryByRole('button', { name: t('dashboard_load_more_jobs') }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('appends rows when "Load more files" is clicked', async () => {
+    seedAuthenticated();
+    const firstPage = Array.from({ length: 20 }, (_, i) => makeFile(`f${i}`));
+    const secondPage = Array.from({ length: 3 }, (_, i) => makeFile(`f${20 + i}`));
+    getMockClient().getMeUsage.mockResolvedValueOnce(emptyUsage());
+    getMockClient().getMeJobs.mockResolvedValueOnce(emptyJobs());
+    getMockClient().getMeFiles
+      .mockResolvedValueOnce(filesPage(firstPage))
+      .mockResolvedValueOnce(filesPage(secondPage, 20));
+
+    renderDashboard('en');
+    const t = createTranslator('en');
+
+    const loadMore = await screen.findByRole('button', {
+      name: t('dashboard_load_more_files'),
+    });
+    const filesSection = sectionFor(t('dashboard_recent_files'));
+    expect(within(filesSection).getAllByRole('listitem')).toHaveLength(20);
+
+    const user = makeUser();
+    await user.click(loadMore);
+
+    await waitFor(() =>
+      expect(within(filesSection).getAllByRole('listitem')).toHaveLength(23),
+    );
+    expect(getMockClient().getMeFiles).toHaveBeenLastCalledWith('at-1', {
+      limit: 20,
+      offset: 20,
+    });
+    expect(
+      screen.queryByRole('button', { name: t('dashboard_load_more_files') }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('hides the load-more buttons when the initial page is shorter than the limit', async () => {
+    seedAuthenticated();
+    const jobs = Array.from({ length: 5 }, (_, i) => makeJob(`j${i}`));
+    const files = Array.from({ length: 5 }, (_, i) => makeFile(`f${i}`));
+    getMockClient().getMeUsage.mockResolvedValueOnce(emptyUsage());
+    getMockClient().getMeJobs.mockResolvedValueOnce(jobsPage(jobs));
+    getMockClient().getMeFiles.mockResolvedValueOnce(filesPage(files));
+
+    renderDashboard('en');
+    const t = createTranslator('en');
+
+    await screen.findByRole('heading', { name: t('dashboard_title') });
+    await waitFor(() => {
+      const jobsSection = sectionFor(t('dashboard_recent_jobs'));
+      expect(within(jobsSection).getAllByRole('listitem')).toHaveLength(5);
+    });
+    const filesSection = sectionFor(t('dashboard_recent_files'));
+    expect(within(filesSection).getAllByRole('listitem')).toHaveLength(5);
+    expect(
+      screen.queryByRole('button', { name: t('dashboard_load_more_jobs') }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: t('dashboard_load_more_files') }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('preserves rendered jobs and shows an inline retry when load-more fails', async () => {
+    seedAuthenticated();
+    const firstPage = Array.from({ length: 20 }, (_, i) => makeJob(`j${i}`));
+    const recoveredPage = Array.from({ length: 3 }, (_, i) => makeJob(`j${20 + i}`));
+    getMockClient().getMeUsage.mockResolvedValueOnce(emptyUsage());
+    getMockClient().getMeJobs
+      .mockResolvedValueOnce(jobsPage(firstPage))
+      .mockRejectedValueOnce(new LunedocApiError(500, 'boom'))
+      .mockResolvedValueOnce(jobsPage(recoveredPage, 20));
+    getMockClient().getMeFiles.mockResolvedValueOnce(emptyFiles());
+
+    renderDashboard('en');
+    const t = createTranslator('en');
+
+    const loadMore = await screen.findByRole('button', {
+      name: t('dashboard_load_more_jobs'),
+    });
+    const jobsSection = sectionFor(t('dashboard_recent_jobs'));
+    expect(within(jobsSection).getAllByRole('listitem')).toHaveLength(20);
+
+    const user = makeUser();
+    await user.click(loadMore);
+
+    expect(
+      await screen.findByText(t('dashboard_load_more_failed')),
+    ).toBeInTheDocument();
+    expect(within(jobsSection).getAllByRole('listitem')).toHaveLength(20);
+    expect(
+      screen.queryByRole('button', { name: t('dashboard_load_more_jobs') }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      within(jobsSection).getByRole('button', { name: t('dashboard_retry') }),
+    );
+
+    await waitFor(() =>
+      expect(within(jobsSection).getAllByRole('listitem')).toHaveLength(23),
+    );
+    expect(
+      screen.queryByText(t('dashboard_load_more_failed')),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: t('dashboard_load_more_jobs') }),
+    ).not.toBeInTheDocument();
+  });
 });
+
+function sectionFor(headingText: string): HTMLElement {
+  const heading = screen.getByRole('heading', { name: headingText });
+  const section = heading.closest('section');
+  if (!section) throw new Error(`No <section> ancestor for heading: ${headingText}`);
+  return section as HTMLElement;
+}
